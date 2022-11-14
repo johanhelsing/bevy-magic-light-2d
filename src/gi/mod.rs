@@ -162,7 +162,7 @@ impl render_graph::Node for GiComputeNode {
                 }
 
                 {
-                    let workgroup_size = 5;
+                    let workgroup_size = 8;
                     let grid_w = (SIZE.0 / GI_SCREEN_PROBE_SIZE as u32) / workgroup_size;
                     let grid_h = (SIZE.1 / GI_SCREEN_PROBE_SIZE as u32) / workgroup_size;
                     pass.set_bind_group(0, &pipeline_bind_groups.ss_probe_bind_group, &[]);
@@ -175,7 +175,7 @@ impl render_graph::Node for GiComputeNode {
                 }
 
                 {
-                    let workgroup_size = 5;
+                    let workgroup_size = 8;
                     let grid_w = (SIZE.0 / GI_SCREEN_PROBE_SIZE as u32) / workgroup_size;
                     let grid_h = (SIZE.1 / GI_SCREEN_PROBE_SIZE as u32) / workgroup_size;
                     pass.set_bind_group(0, &pipeline_bind_groups.ss_bounce_bind_group, &[]);
@@ -188,7 +188,7 @@ impl render_graph::Node for GiComputeNode {
                 }
 
                 {
-                    let workgroup_size = 5;
+                    let workgroup_size = 8;
                     let grid_w = (SIZE.0 / GI_SCREEN_PROBE_SIZE as u32) / workgroup_size;
                     let grid_h = (SIZE.1 / GI_SCREEN_PROBE_SIZE as u32) / workgroup_size;
                     pass.set_bind_group(0, &pipeline_bind_groups.ss_blend_bind_group, &[]);

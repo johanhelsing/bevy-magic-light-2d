@@ -200,7 +200,7 @@ fn estimate_probes_at(
 }
 
 
-@compute @workgroup_size(5, 5, 1)
+@compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let screen_pose  = vec2<i32>(invocation_id.xy) * state.ss_probe_size + state.ss_probe_size / 2;
     let sample_pose  = screen_to_world(screen_pose, camera_params.screen_size, camera_params.inverse_view_proj);

@@ -84,7 +84,7 @@ fn raymarch(
 }
 
 
-@compute @workgroup_size(5, 5, 1)
+@compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let tile_xy      = vec2<i32>(invocation_id.xy);
 
@@ -126,7 +126,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 
     // Compute indirrect light.
     let pi                  = radians(180.0);
-    let rays_per_sample     = 28;
+    let rays_per_sample     = 16;
     let golden_angle        = (2.0 * pi) / f32(rays_per_sample);
     var indirect_irradiance = vec3<f32>(0.0);
     var total_rays          = 0;
@@ -140,7 +140,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let r_bias = 12.0;
     let r_step = 16.0;
 
-    for (var k = 1; k <= 6; k++) {
+    for (var k = 1; k <= 5; k++) {
 
         var r = r_bias + f32(k * k) * r_step;
             r = 0.3 * r + 0.7 * r * (0.5 - h);
@@ -169,15 +169,6 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
             let sample_kernel  = 0;
             let sample_probe   = textureLoad(ss_probe_in, sample_atlas_pose);
             var sample_xyz     = sample_probe.xyz;
-
-
-            // sample_xyz = sample_xyz
-            //            + textureLoad(ss_probe_in, sample_atlas_pose + vec2<i32>( 0,  1)).xyz
-            //            + textureLoad(ss_probe_in, sample_atlas_pose + vec2<i32>( 0, -1)).xyz
-            //            + textureLoad(ss_probe_in, sample_atlas_pose + vec2<i32>( 1,  0)).xyz
-            //            + textureLoad(ss_probe_in, sample_atlas_pose + vec2<i32>(-1,  0)).xyz;
-            // sample_xyz = sample_xyz / 5.0;
-
 
             let sample_halton       = unpack2x16float(bitcast<u32>(sample_probe.w));
             let sample_offset_world = sample_halton * probe_size_f32;

@@ -6,13 +6,12 @@
 @group(0) @binding(1) var<storage> light_occluder_buffer: LightOccluderBuffer;
 @group(0) @binding(2) var          sdf_out:               texture_storage_2d<r16float, write>;
 
+
 fn sdf_aabb_occluder(p: vec2<f32>, occluder_i: i32) -> f32 {
     let occluder = light_occluder_buffer.data[occluder_i];
-    let d        = abs(p - occluder.center) - occluder.h_extent;
-    return length(vec2<f32>(
-        max(d.x, 0.0),
-        max(d.y, 0.0),
-    ));
+    var d        = abs(p - occluder.center) - occluder.h_extent;
+        d        = max(d, vec2<f32>(0.0));
+    return fast_sqrt(d.x * d.x + d.y * d.y);
 }
 
 @compute @workgroup_size(8, 8, 1)

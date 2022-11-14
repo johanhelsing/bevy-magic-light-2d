@@ -84,7 +84,7 @@ fn raymarch(
     return 0.0;
 }
 
-@compute @workgroup_size(5, 5, 1)
+@compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let tile_xy      = vec2<i32>(invocation_id.xy);
 
@@ -107,6 +107,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 
     let ambient             = 0.0001;//state.gi_ambient;
 
+    // Hardcoded falloff params for light sources.
     let light_a = 120.0;
     let light_b = 10.0;
     let light_c = 0.5;
@@ -135,89 +136,6 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
         total_irradiance += light.color  * occlusion * att * light.intensity;
     }
 
-    // let pi = radians(180.0);
-    // let rays_per_sample = 12;
-    // let golden_angle = pi * 0.7639320225;
-    // var indirect_irradiance = vec3<f32>(0.0);
-    // var total_rays = 0;
-    // var total_w    = 0.0;
-    // var h = hash(probe_center_world);
-
-    // for (var k = 1; k < 4; k++) {
-
-    //     var r = 16.0 * pow(1.8 + h, f32(k));;
-    //         r = 0.9 * r + 0.1 * halton.x * r;
-    //         r = 0.9 * r + 0.1 * h * r;
-
-    //     let r2 = r / 8.0;
-    //     let r4 = r2 / 2.0;
-
-    //     for (var ray_i = 0; ray_i < rays_per_sample; ray_i++) {
-
-    //         var base_angle  = (2.0 * pi) / f32(rays_per_sample) * f32(ray_i);
-    //             base_angle *= base_angle * 0.9 + hash(vec2<f32>(r, r)) + 0.1 * base_angle;
-
-    //         var sample_world = probe_center_world + vec2<f32>(r) * normalize(vec2<f32>(
-    //             cos(base_angle),
-    //             sin(base_angle),
-    //         ));
-
-    //         let sample_h = vec2<f32>(hash(sample_world));
-
-    //         sample_world += r2 * sample_h - r4;
-
-    //         let raymarch_sample_to_probe = raymarch(
-    //             probe_center_world,
-    //             sample_world,
-    //             12,
-    //         );
-
-    //         // Discard if ocluded.
-    //         if raymarch_sample_to_probe <= 0.0 {
-    //             continue;
-    //         }
-
-    //         // Discrad if sample offscreen.
-    //         let sample_ndc = world_to_ndc(sample_world, camera_params.view_proj);
-    //         if any(sample_ndc < vec2<f32>(-1.0)) || any(sample_ndc > vec2<f32>(1.0)) {
-    //             continue;
-    //         }
-
-
-    //         var sample_irradiance = vec3<f32>(0.0);
-
-    //         total_rays += 1;
-
-    //         for (var i: i32 = 0; i < i32(lights_source_buffer.count); i++) {
-
-
-    //             let light = lights_source_buffer.data[i];
-
-    //             let occlusion = light.color * raymarch(
-    //                 sample_world,
-    //                 light.center,
-    //                 16,
-    //             );
-
-    //             let att = light_attenuation_r1(
-    //                     sample_world,
-    //                     light.center,
-    //                     light_a,
-    //                     light_b,
-    //                     light_c,
-    //                 );
-
-    //             sample_irradiance += 0.3 * att * light.color * occlusion * light.intensity;
-    //         }
-
-
-    //         indirect_irradiance += sample_irradiance;
-
-    //     }
-    // }
-
-    // total_irradiance += indirect_irradiance / f32(total_rays * 8);
-
     // Coordinates of the screen-space cache output tile.
     let atlas_row = frame_index / state.ss_probe_size;
     let atlas_col = frame_index % state.ss_probe_size;
@@ -239,5 +157,4 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     );
 
     textureStore(ss_probe_out, out_atlas_tile_pose, color);
-    // textureStore(ss_probe_out, out_atlas_tile_pose, vec4<f32>(f32(frame_index) / f32(reservoir_size), 0.0, 0.0, 1.0));
 }

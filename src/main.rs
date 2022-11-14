@@ -3,6 +3,7 @@ use bevy_2d_gi_experiment::{
     gi::{self, LightOccluder, LightSource, GiTarget},
     MainCamera, SCREEN_SIZE,
 };
+use bevy_inspector_egui::WorldInspectorPlugin;
 use rand::prelude::*;
 
 const MAP: &[&[u8]] = &[
@@ -29,14 +30,6 @@ pub struct MouseLight;
 
 fn main() {
     App::new()
-        // .insert_resource(WindowDescriptor {
-        //     width: SCREEN_SIZE.0 as f32,
-        //     height: SCREEN_SIZE.1 as f32,
-        //     title: "Bevy 2D GI Experiment".into(),
-        //     resizable: false,
-        //     mode: bevy::window::WindowMode::Windowed,
-        //     ..Default::default()
-        // })
         .insert_resource(ClearColor(Color::rgba(0.0, 0.0, 0.0, 0.0)))
         .add_plugins(DefaultPlugins.set(AssetPlugin {
             // Tell the asset server to watch for asset changes on disk:
@@ -54,6 +47,7 @@ fn main() {
              ..Default::default()
         }))
         .add_plugin(gi::GiComputePlugin)
+        .add_plugin(WorldInspectorPlugin::new())
         .add_startup_system(setup)
         .add_system(system_move_light_to_cursor)
         .add_system(system_move_camera.before(system_move_light_to_cursor))

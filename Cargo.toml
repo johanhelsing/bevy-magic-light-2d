@@ -1,12 +1,7 @@
 [package]
+name = "bevy_2d_gi_experiment"
 edition = "2021"
-name = "bevy_2d_gi_experiment"
 version = "0.1.0"
-
-[lib]
-name = "bevy_2d_gi_experiment"
-crate-type = ["cdylib", "lib", "staticlib"]
-path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1.0.66"

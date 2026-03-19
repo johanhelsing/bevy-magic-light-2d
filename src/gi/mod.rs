@@ -4,8 +4,9 @@ use bevy::render::extract_resource::ExtractResourcePlugin;
 use bevy::render::render_graph::{self, RenderGraph, RenderLabel};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderContext;
-use bevy::render::{Render, RenderApp, RenderSet};
-use bevy::sprite::Material2dPlugin;
+use bevy::render::{Render, RenderApp, RenderSystems};
+use bevy::shader::load_shader_library;
+use bevy::sprite_render::Material2dPlugin;
 use bevy::window::{PrimaryWindow, WindowResized};
 
 use self::pipeline::GiTargets;
@@ -71,18 +72,21 @@ impl Plugin for BevyMagicLight2DPlugin
         )
         .add_systems(PreUpdate, handle_window_resize);
 
-        embedded_asset!(app, "shaders/gi_attenuation.wgsl");
-        embedded_asset!(app, "shaders/gi_camera.wgsl");
-        embedded_asset!(app, "shaders/gi_halton.wgsl");
-        embedded_asset!(app, "shaders/gi_math.wgsl");
+        // Library shaders (imported by other shaders, need #define_import_path)
+        // Use load_shader_library! for synchronous loading to avoid race conditions
+        load_shader_library!(app, "shaders/gi_attenuation.wgsl");
+        load_shader_library!(app, "shaders/gi_camera.wgsl");
+        load_shader_library!(app, "shaders/gi_halton.wgsl");
+        load_shader_library!(app, "shaders/gi_math.wgsl");
+        load_shader_library!(app, "shaders/gi_raymarch.wgsl");
+        load_shader_library!(app, "shaders/gi_types.wgsl");
+        // Pipeline shaders (loaded as assets, referenced by handle)
         embedded_asset!(app, "shaders/gi_post_processing.wgsl");
-        embedded_asset!(app, "shaders/gi_raymarch.wgsl");
         embedded_asset!(app, "shaders/gi_sdf.wgsl");
         embedded_asset!(app, "shaders/gi_ss_blend.wgsl");
         embedded_asset!(app, "shaders/gi_ss_bounce.wgsl");
         embedded_asset!(app, "shaders/gi_ss_filter.wgsl");
         embedded_asset!(app, "shaders/gi_ss_probe.wgsl");
-        embedded_asset!(app, "shaders/gi_types.wgsl");
 
         let render_app = app.sub_app_mut(RenderApp);
         render_app
@@ -90,8 +94,8 @@ impl Plugin for BevyMagicLight2DPlugin
             .add_systems(
                 Render,
                 (
-                    system_prepare_pipeline_assets.in_set(RenderSet::Prepare),
-                    system_queue_bind_groups.in_set(RenderSet::Queue),
+                    system_prepare_pipeline_assets.in_set(RenderSystems::Prepare),
+                    system_queue_bind_groups.in_set(RenderSystems::Queue),
                 ),
             );
 
@@ -131,7 +135,7 @@ pub fn handle_window_resize(
     mut res_gi_targets_wrapper: ResMut<GiTargetsWrapper>,
     mut res_camera_targets:     ResMut<CameraTargets>,
 
-    mut window_resized_evr: EventReader<WindowResized>,
+    mut window_resized_evr: MessageReader<WindowResized>,
 ) {
     for _ in window_resized_evr.read() {
         let window = query_window
@@ -145,7 +149,7 @@ pub fn handle_window_resize(
             // Window might be minimized, skip updating resources.
             return;
         }
-        
+
         assets_mesh.insert(
             POST_PROCESSING_RECT.id(),
             Mesh::from(bevy::math::primitives::Rectangle::new(

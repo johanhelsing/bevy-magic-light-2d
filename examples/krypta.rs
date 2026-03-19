@@ -1,10 +1,10 @@
+use bevy::camera::visibility::RenderLayers;
+use bevy::camera::RenderTarget;
 use bevy::color::palettes;
 use bevy::image::{ImageFilterMode, ImageSamplerDescriptor};
 use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
-use bevy::render::camera::RenderTarget;
-use bevy::render::view::RenderLayers;
-use bevy::window::PrimaryWindow;
+use bevy::window::{PrimaryWindow, WindowResolution};
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::ResourceInspectorPlugin;
 use bevy_magic_light_2d::gi::render_layer::ALL_LAYERS;
@@ -15,7 +15,7 @@ pub const TILE_SIZE: f32 = 16.0;
 pub const SPRITE_SCALE: f32 = 4.0;
 pub const Z_BASE_FLOOR: f32 = 100.0; // Base z-coordinate for 2D layers.
 pub const Z_BASE_OBJECTS: f32 = 200.0; // Ground object sprites.
-pub const SCREEN_SIZE: (f32, f32) = (1280.0, 720.0);
+pub const SCREEN_SIZE: (u32, u32) = (1280, 720);
 pub const CAMERA_SCALE: f32 = 1.0;
 pub const CAMERA_SCALE_BOUNDS: (f32, f32) = (1., 20.);
 pub const CAMERA_ZOOM_SPEED: f32 = 3.;
@@ -39,7 +39,7 @@ fn main()
                 })
                 .set(WindowPlugin {
                     primary_window: Some(Window {
-                        resolution: SCREEN_SIZE.into(),
+                        resolution: WindowResolution::new(SCREEN_SIZE.0, SCREEN_SIZE.1),
                         title: "Bevy Magic Light 2D: Krypta Example".into(),
                         resizable: true,
                         ..default()
@@ -56,6 +56,7 @@ fn main()
             BevyMagicLight2DPlugin,
             EguiPlugin {
                 enable_multipass_for_primary_context: false,
+                ..default()
             },
             ResourceInspectorPlugin::<BevyMagicLight2DSettings>::new(),
         ))
@@ -93,8 +94,8 @@ fn setup(
 )
 {
     // Utility functions to compute Z coordinate for floor and ground objects.
-    let get_floor_z = |y| -> f32 { Z_BASE_FLOOR - y / SCREEN_SIZE.1 };
-    let get_object_z = |y| -> f32 { Z_BASE_OBJECTS - y / SCREEN_SIZE.1 };
+    let get_floor_z = |y: f32| -> f32 { Z_BASE_FLOOR - y / SCREEN_SIZE.1 as f32 };
+    let get_object_z = |y: f32| -> f32 { Z_BASE_OBJECTS - y / SCREEN_SIZE.1 as f32 };
 
     // Maze map. 1 represents wall.
     let walls_info: &[&[u8]] = &[
@@ -823,11 +824,8 @@ fn setup(
     commands
         .spawn((
             Camera2d,
-            Camera {
-                hdr: false,
-                target: RenderTarget::Image(camera_targets.floor_target.clone().into()),
-                ..default()
-            },
+            Camera::default(),
+            RenderTarget::Image(camera_targets.floor_target.clone().into()),
             projection.clone(),
             Name::new("floors_target_camera"),
         ))
@@ -837,11 +835,8 @@ fn setup(
     commands
         .spawn((
             Camera2d,
-            Camera {
-                hdr: false,
-                target: RenderTarget::Image(camera_targets.walls_target.clone().into()),
-                ..default()
-            },
+            Camera::default(),
+            RenderTarget::Image(camera_targets.walls_target.clone().into()),
             projection.clone(),
             Name::new("walls_target_camera"),
         ))
@@ -851,11 +846,8 @@ fn setup(
     commands
         .spawn((
             Camera2d,
-            Camera {
-                hdr: false,
-                target: RenderTarget::Image(camera_targets.objects_target.clone().into()),
-                ..default()
-            },
+            Camera::default(),
+            RenderTarget::Image(camera_targets.objects_target.clone().into()),
             projection,
             Name::new("objects_targets_camera"),
         ))
@@ -885,7 +877,8 @@ fn system_control_mouse_light(
         let window_size = Vec2::new(window.width(), window.height());
         let mut mouse_ndc = (screen_pos / window_size) * 2.0 - Vec2::ONE;
         mouse_ndc = Vec2::new(mouse_ndc.x, -mouse_ndc.y);
-        let ndc_to_world = camera_transform.compute_matrix() * camera.clip_from_view().inverse();
+        let view: Mat4 = camera_transform.affine().into();
+        let ndc_to_world = view * camera.clip_from_view().inverse();
         let mouse_world = ndc_to_world.project_point3(mouse_ndc.extend(-1.0));
 
         let (mut mouse_transform, mut mouse_color) = query_light.into_inner();
@@ -943,7 +936,7 @@ fn system_move_camera(
 fn system_camera_zoom(
     mut cameras: Query<&mut Projection, With<SpriteCamera>>,
     time: Res<Time>,
-    mut scroll_event_reader: EventReader<MouseWheel>,
+    mut scroll_event_reader: MessageReader<MouseWheel>,
 )
 {
     let mut projection_delta = 0.;

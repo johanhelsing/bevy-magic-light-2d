@@ -1,6 +1,7 @@
+use bevy::camera::RenderTarget;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
-use bevy::render::camera::RenderTarget;
+use bevy::window::WindowResolution;
 use bevy_magic_light_2d::prelude::*;
 
 fn main()
@@ -11,7 +12,7 @@ fn main()
         .add_plugins((
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
-                    resolution: (512., 512.).into(),
+                    resolution: WindowResolution::new(512, 512),
                     title: "Bevy Magic Light 2D: Minimal Example".into(),
                     resizable: false,
                     ..default()
@@ -110,11 +111,8 @@ fn setup(mut commands: Commands, camera_targets: Res<CameraTargets>)
     commands
         .spawn((
             Camera2d,
-            Camera {
-                hdr: true,
-                target: RenderTarget::Image(camera_targets.floor_target.clone().into()),
-                ..Default::default()
-            },
+            Camera::default(),
+            RenderTarget::Image(camera_targets.floor_target.clone().into()),
             Name::new("main_camera"),
             FloorCamera,
         ))

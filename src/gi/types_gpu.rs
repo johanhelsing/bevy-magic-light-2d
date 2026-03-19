@@ -31,7 +31,7 @@ impl GpuOmniLightSource
 #[derive(Default, Clone, ShaderType)]
 pub struct GpuLightSourceBuffer {
     pub count: u32,
-    #[size(runtime)]
+    #[shader(size(runtime))]
     pub data:  Vec<GpuOmniLightSource>,
 }
 
@@ -47,7 +47,7 @@ pub struct GpuLightOccluder2D {
 #[derive(Default, Clone, ShaderType)]
 pub struct GpuLightOccluderBuffer {
     pub count: u32,
-    #[size(runtime)]
+    #[shader(size(runtime))]
     pub data:  Vec<GpuLightOccluder2D>,
 }
 
@@ -113,7 +113,7 @@ pub struct GpuProbeData {
 #[derive(Clone, ShaderType)]
 pub struct GpuProbeDataBuffer {
     pub count: u32,
-    #[size(runtime)]
+    #[shader(size(runtime))]
     pub data:  Vec<GpuProbeData>,
 }
 
@@ -153,6 +153,6 @@ impl GpuSkylightMaskData
 #[derive(Clone, ShaderType, Default)]
 pub struct GpuSkylightMaskBuffer {
     pub count: u32,
-    #[size(runtime)]
+    #[shader(size(runtime))]
     pub data: Vec<GpuSkylightMaskData>,
 }

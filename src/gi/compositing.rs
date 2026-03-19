@@ -1,22 +1,22 @@
-use bevy::core_pipeline::bloom::Bloom;
+use bevy::asset::uuid_handle;
+use bevy::camera::visibility::RenderLayers;
+use bevy::mesh::MeshVertexBufferLayoutRef;
 use bevy::pbr::{MAX_CASCADES_PER_LIGHT, MAX_DIRECTIONAL_LIGHTS};
+use bevy::post_process::bloom::Bloom;
 use bevy::prelude::*;
 use bevy::reflect::TypePath;
-use bevy::render::mesh::MeshVertexBufferLayoutRef;
 use bevy::render::render_resource::{
     AsBindGroup,
     Extent3d,
     RenderPipelineDescriptor,
-    ShaderDefVal,
-    ShaderRef,
     SpecializedMeshPipelineError,
     TextureDescriptor,
     TextureDimension,
     TextureFormat,
     TextureUsages,
 };
-use bevy::render::view::RenderLayers;
-use bevy::sprite::{Material2d, Material2dKey};
+use bevy::shader::{ShaderDefVal, ShaderRef};
+use bevy::sprite_render::{Material2d, Material2dKey};
 
 use crate::gi::constants::{POST_PROCESSING_MATERIAL, POST_PROCESSING_RECT};
 use crate::gi::pipeline::GiTargetsWrapper;
@@ -134,9 +134,12 @@ impl CameraTargets
         walls_image.resize(target_size);
         objects_image.resize(target_size);
 
-        let floor_image_handle: Handle<Image> = Handle::weak_from_u128(9127312736151891273);
-        let walls_image_handle: Handle<Image> = Handle::weak_from_u128(7264512947825624361);
-        let objects_image_handle: Handle<Image> = Handle::weak_from_u128(2987462343287146234);
+        let floor_image_handle: Handle<Image> =
+            uuid_handle!("00000000-0000-0000-7eaa-ba93303b6d49");
+        let walls_image_handle: Handle<Image> =
+            uuid_handle!("00000000-0000-0000-64d0-bc09795f4529");
+        let objects_image_handle: Handle<Image> =
+            uuid_handle!("00000000-0000-0000-2975-992c477c86fa");
 
         images.insert(floor_image_handle.id(), floor_image);
         images.insert(walls_image_handle.id(), walls_image);
@@ -218,10 +221,9 @@ pub fn setup_post_processing_camera(
 
     commands.spawn((
         Name::new("post_processing_camera"),
-        Camera2d, 
+        Camera2d,
         Camera{
             order: 1,
-            hdr: true,
             ..default()
         },
         Bloom {

@@ -166,7 +166,7 @@ pub fn system_extract_pipeline_assets(
             let camera_params = gpu_pipeline_assets.camera_params.get_mut();
             let projection = camera.clip_from_view();
             let inverse_projection = projection.inverse();
-            let view = camera_global_transform.compute_matrix();
+            let view: Mat4 = camera_global_transform.affine().into();
             let inverse_view = view.inverse();
 
             camera_params.view_proj = projection * inverse_view;

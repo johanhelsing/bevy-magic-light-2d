@@ -1,7 +1,8 @@
+use bevy::asset::{uuid_handle, RenderAssetUsages};
 use bevy::image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::prelude::*;
 use bevy::render::extract_resource::ExtractResource;
-use bevy::render::render_asset::{RenderAssetUsages, RenderAssets};
+use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::texture::GpuImage;
@@ -83,12 +84,12 @@ impl GiTargets
             ImageFilterMode::Nearest,
         );
 
-        let sdf_target: Handle<Image> = Handle::weak_from_u128(2390847209461232343);
-        let ss_probe_target: Handle<Image> = Handle::weak_from_u128(3423231236817235162);
-        let ss_bounce_target: Handle<Image> = Handle::weak_from_u128(3198273198312367527);
-        let ss_blend_target: Handle<Image> = Handle::weak_from_u128(7782312739182735881);
-        let ss_filter_target: Handle<Image> = Handle::weak_from_u128(8761232615172413412);
-        let ss_pose_target: Handle<Image> = Handle::weak_from_u128(4728165084756128470);
+        let sdf_target = uuid_handle!("00000000-0000-0000-212d-fedea82bb2d7");
+        let ss_probe_target = uuid_handle!("00000000-0000-0000-2f81-c2ac3e832cda");
+        let ss_bounce_target = uuid_handle!("00000000-0000-0000-2c62-8c87580fa5a7");
+        let ss_blend_target = uuid_handle!("00000000-0000-0000-6c00-54342dfbf209");
+        let ss_filter_target = uuid_handle!("00000000-0000-0000-7996-26a4fdeb17e4");
+        let ss_pose_target = uuid_handle!("00000000-0000-0000-419d-d117fc4b32d6");
 
         images.insert(sdf_target.id(), sdf_tex);
         images.insert(ss_probe_target.id(), ss_probe_tex);
@@ -165,27 +166,46 @@ pub fn system_setup_gi_pipeline(
 #[derive(Resource)]
 pub struct LightPassPipeline
 {
-    pub sdf_bind_group_layout:       BindGroupLayout,
+    pub sdf_bind_group_layout:       BindGroupLayoutDescriptor,
     pub sdf_pipeline:                CachedComputePipelineId,
-    pub ss_probe_bind_group_layout:  BindGroupLayout,
+    pub ss_probe_bind_group_layout:  BindGroupLayoutDescriptor,
     pub ss_probe_pipeline:           CachedComputePipelineId,
-    pub ss_bounce_bind_group_layout: BindGroupLayout,
+    pub ss_bounce_bind_group_layout: BindGroupLayoutDescriptor,
     pub ss_bounce_pipeline:          CachedComputePipelineId,
-    pub ss_blend_bind_group_layout:  BindGroupLayout,
+    pub ss_blend_bind_group_layout:  BindGroupLayoutDescriptor,
     pub ss_blend_pipeline:           CachedComputePipelineId,
-    pub ss_filter_bind_group_layout: BindGroupLayout,
+    pub ss_filter_bind_group_layout: BindGroupLayoutDescriptor,
     pub ss_filter_pipeline:          CachedComputePipelineId,
 }
 
 pub fn system_queue_bind_groups(
     mut commands: Commands,
     pipeline: Res<LightPassPipeline>,
+    pipeline_cache: Res<PipelineCache>,
     gpu_images: Res<RenderAssets<GpuImage>>,
     targets_wrapper: Res<GiTargetsWrapper>,
     gi_compute_assets: Res<LightPassPipelineAssets>,
     render_device: Res<RenderDevice>,
 )
 {
+    let light_sources_binding = gi_compute_assets.light_sources.binding();
+    let light_occluders_binding = gi_compute_assets.light_occluders.binding();
+    let camera_params_binding = gi_compute_assets.camera_params.binding();
+    let gi_state_binding = gi_compute_assets.light_pass_params.binding();
+    let probes_binding = gi_compute_assets.probes.binding();
+    let skylight_masks_binding = gi_compute_assets.skylight_masks.binding();
+
+    if light_sources_binding.is_none()
+        || light_occluders_binding.is_none()
+        || camera_params_binding.is_none()
+        || gi_state_binding.is_none()
+        || probes_binding.is_none()
+        || skylight_masks_binding.is_none()
+    {
+        // Expected on the first frame before extract/prepare have run
+        return;
+    }
+
     if let (
         Some(light_sources),
         Some(light_occluders),
@@ -194,12 +214,12 @@ pub fn system_queue_bind_groups(
         Some(probes),
         Some(skylight_masks),
     ) = (
-        gi_compute_assets.light_sources.binding(),
-        gi_compute_assets.light_occluders.binding(),
-        gi_compute_assets.camera_params.binding(),
-        gi_compute_assets.light_pass_params.binding(),
-        gi_compute_assets.probes.binding(),
-        gi_compute_assets.skylight_masks.binding(),
+        light_sources_binding,
+        light_occluders_binding,
+        camera_params_binding,
+        gi_state_binding,
+        probes_binding,
+        skylight_masks_binding,
     ) {
         let targets = targets_wrapper
             .targets
@@ -225,9 +245,19 @@ pub fn system_queue_bind_groups(
             .get(&targets.ss_pose_target)
             .expect("SS Pose target not found");
 
+        let sdf_layout = pipeline_cache.get_bind_group_layout(&pipeline.sdf_bind_group_layout);
+        let ss_probe_layout =
+            pipeline_cache.get_bind_group_layout(&pipeline.ss_probe_bind_group_layout);
+        let ss_bounce_layout =
+            pipeline_cache.get_bind_group_layout(&pipeline.ss_bounce_bind_group_layout);
+        let ss_blend_layout =
+            pipeline_cache.get_bind_group_layout(&pipeline.ss_blend_bind_group_layout);
+        let ss_filter_layout =
+            pipeline_cache.get_bind_group_layout(&pipeline.ss_filter_bind_group_layout);
+
         let sdf_bind_group = render_device.create_bind_group(
             "gi_sdf_bind_group",
-            &pipeline.sdf_bind_group_layout,
+            &sdf_layout,
             &[
                 BindGroupEntry {
                     binding:  0,
@@ -246,7 +276,7 @@ pub fn system_queue_bind_groups(
 
         let ss_probe_bind_group = render_device.create_bind_group(
             "gi_ss_probe_bind_group",
-            &pipeline.ss_probe_bind_group_layout,
+            &ss_probe_layout,
             &[
                 BindGroupEntry {
                     binding:  0,
@@ -285,7 +315,7 @@ pub fn system_queue_bind_groups(
 
         let ss_bounce_bind_group = render_device.create_bind_group(
             "gi_bounce_bind_group",
-            &pipeline.ss_bounce_bind_group_layout,
+            &ss_bounce_layout,
             &[
                 BindGroupEntry {
                     binding:  0,
@@ -316,7 +346,7 @@ pub fn system_queue_bind_groups(
 
         let ss_blend_bind_group = render_device.create_bind_group(
             "gi_blend_bind_group",
-            &pipeline.ss_blend_bind_group_layout,
+            &ss_blend_layout,
             &[
                 BindGroupEntry {
                     binding:  0,
@@ -351,7 +381,7 @@ pub fn system_queue_bind_groups(
 
         let ss_filter_bind_group = render_device.create_bind_group(
             "ss_filter_bind_group",
-            &pipeline.ss_filter_bind_group_layout,
+            &ss_filter_layout,
             &[
                 BindGroupEntry {
                     binding:  0,
@@ -402,9 +432,7 @@ impl FromWorld for LightPassPipeline
 {
     fn from_world(world: &mut World) -> Self
     {
-        let render_device = world.resource::<RenderDevice>();
-
-        let sdf_bind_group_layout = render_device.create_bind_group_layout(
+        let sdf_bind_group_layout = BindGroupLayoutDescriptor::new(
             "sdf_bind_group_layout",
             &[
                 // Camera.
@@ -443,7 +471,7 @@ impl FromWorld for LightPassPipeline
             ],
         );
 
-        let ss_probe_bind_group_layout = render_device.create_bind_group_layout(
+        let ss_probe_bind_group_layout = BindGroupLayoutDescriptor::new(
             "ss_probe_bind_group_layout",
             &[
                 // Camera.
@@ -533,7 +561,7 @@ impl FromWorld for LightPassPipeline
             ],
         );
 
-        let ss_bounce_bind_group_layout = render_device.create_bind_group_layout(
+        let ss_bounce_bind_group_layout = BindGroupLayoutDescriptor::new(
             "ss_bounce_bind_group_layout",
             &[
                 // Camera.
@@ -601,7 +629,7 @@ impl FromWorld for LightPassPipeline
             ],
         );
 
-        let ss_blend_bind_group_layout = render_device.create_bind_group_layout(
+        let ss_blend_bind_group_layout = BindGroupLayoutDescriptor::new(
             "ss_blend_bind_group_layout",
             &[
                 // Camera.
@@ -680,7 +708,7 @@ impl FromWorld for LightPassPipeline
             ],
         );
 
-        let ss_filter_bind_group_layout = render_device.create_bind_group_layout(
+        let ss_filter_bind_group_layout = BindGroupLayoutDescriptor::new(
             "ss_filter_bind_group_layout",
             &[
                 // Camera.
@@ -788,7 +816,7 @@ impl FromWorld for LightPassPipeline
             layout:                           vec![sdf_bind_group_layout.clone()],
             shader:                           shader_sdf,
             shader_defs:                      vec![],
-            entry_point:                      SDF_PIPELINE_ENTRY.into(),
+            entry_point:                      Some(SDF_PIPELINE_ENTRY.into()),
             push_constant_ranges:             vec![],
             zero_initialize_workgroup_memory: false,
         });
@@ -798,7 +826,7 @@ impl FromWorld for LightPassPipeline
             layout:                           vec![ss_probe_bind_group_layout.clone()],
             shader:                           gi_ss_probe,
             shader_defs:                      vec![],
-            entry_point:                      SS_PROBE_PIPELINE_ENTRY.into(),
+            entry_point:                      Some(SS_PROBE_PIPELINE_ENTRY.into()),
             push_constant_ranges:             vec![],
             zero_initialize_workgroup_memory: false,
         });
@@ -808,7 +836,7 @@ impl FromWorld for LightPassPipeline
             layout:                           vec![ss_bounce_bind_group_layout.clone()],
             shader:                           gi_ss_bounce,
             shader_defs:                      vec![],
-            entry_point:                      SS_BOUNCE_PIPELINE_ENTRY.into(),
+            entry_point:                      Some(SS_BOUNCE_PIPELINE_ENTRY.into()),
             push_constant_ranges:             vec![],
             zero_initialize_workgroup_memory: false,
         });
@@ -818,7 +846,7 @@ impl FromWorld for LightPassPipeline
             layout:                           vec![ss_blend_bind_group_layout.clone()],
             shader:                           gi_ss_blend,
             shader_defs:                      vec![],
-            entry_point:                      SS_BLEND_PIPELINE_ENTRY.into(),
+            entry_point:                      Some(SS_BLEND_PIPELINE_ENTRY.into()),
             push_constant_ranges:             vec![],
             zero_initialize_workgroup_memory: false,
         });
@@ -828,7 +856,7 @@ impl FromWorld for LightPassPipeline
             layout:                           vec![ss_filter_bind_group_layout.clone()],
             shader:                           gi_ss_filter,
             shader_defs:                      vec![],
-            entry_point:                      SS_FILTER_PIPELINE_ENTRY.into(),
+            entry_point:                      Some(SS_FILTER_PIPELINE_ENTRY.into()),
             push_constant_ranges:             vec![],
             zero_initialize_workgroup_memory: false,
         });

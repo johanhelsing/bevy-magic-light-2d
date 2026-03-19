@@ -1,4 +1,4 @@
-use bevy::render::view::Layer;
+use bevy::camera::visibility::Layer;
 
 pub const LAYER_FLOOR_ID: Layer = 1;
 pub const LAYER_WALLS_ID: Layer = 2;

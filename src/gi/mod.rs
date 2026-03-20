@@ -156,12 +156,12 @@ pub fn handle_window_resize(
                 res_target_sizes.primary_target_size.x,
                 res_target_sizes.primary_target_size.y,
             )),
-        );
+        ).expect("failed to insert mesh");
 
         assets_material.insert(
             POST_PROCESSING_MATERIAL.id(),
             PostProcessingMaterial::create(&res_camera_targets, &res_gi_targets_wrapper),
-        );
+        ).expect("failed to insert material");
 
         *res_gi_targets_wrapper = GiTargetsWrapper{targets: Some(GiTargets::create(&mut assets_image, &res_target_sizes))};
         *res_camera_targets = CameraTargets::create(&mut assets_image, &res_target_sizes);

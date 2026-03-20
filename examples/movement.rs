@@ -26,10 +26,7 @@ fn main()
                 ..Default::default()
             }),
             BevyMagicLight2DPlugin,
-            EguiPlugin {
-                enable_multipass_for_primary_context: false,
-                ..default()
-            },
+            EguiPlugin::default(),
             ResourceInspectorPlugin::<BevyMagicLight2DSettings>::new(),
         ))
         .register_type::<BevyMagicLight2DSettings>()

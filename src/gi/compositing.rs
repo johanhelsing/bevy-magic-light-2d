@@ -141,9 +141,15 @@ impl CameraTargets
         let objects_image_handle: Handle<Image> =
             uuid_handle!("00000000-0000-0000-2975-992c477c86fa");
 
-        images.insert(floor_image_handle.id(), floor_image);
-        images.insert(walls_image_handle.id(), walls_image);
-        images.insert(objects_image_handle.id(), objects_image);
+        images
+            .insert(floor_image_handle.id(), floor_image)
+            .expect("failed to insert image");
+        images
+            .insert(walls_image_handle.id(), walls_image)
+            .expect("failed to insert image");
+        images
+            .insert(objects_image_handle.id(), objects_image)
+            .expect("failed to insert image");
 
         Self {
             floor_target:   floor_image_handle,
@@ -200,12 +206,12 @@ pub fn setup_post_processing_camera(
         target_sizes.primary_target_size.y,
     ));
 
-    meshes.insert(POST_PROCESSING_RECT.id(), quad);
+    meshes.insert(POST_PROCESSING_RECT.id(), quad).expect("failed to insert mesh");
 
     *camera_targets = CameraTargets::create(&mut images, &target_sizes);
 
     let material = PostProcessingMaterial::create(&camera_targets, &gi_targets_wrapper);
-    materials.insert(POST_PROCESSING_MATERIAL.id(), material);
+    materials.insert(POST_PROCESSING_MATERIAL.id(), material).expect("failed to insert material");
 
     // This specifies the layer used for the post processing camera, which
     // will be attached to the post processing camera and 2d quad.

@@ -91,12 +91,24 @@ impl GiTargets
         let ss_filter_target = uuid_handle!("00000000-0000-0000-7996-26a4fdeb17e4");
         let ss_pose_target = uuid_handle!("00000000-0000-0000-419d-d117fc4b32d6");
 
-        images.insert(sdf_target.id(), sdf_tex);
-        images.insert(ss_probe_target.id(), ss_probe_tex);
-        images.insert(ss_bounce_target.id(), ss_bounce_tex);
-        images.insert(ss_blend_target.id(), ss_blend_tex);
-        images.insert(ss_filter_target.id(), ss_filter_tex);
-        images.insert(ss_pose_target.id(), ss_pose_tex);
+        images
+            .insert(sdf_target.id(), sdf_tex)
+            .expect("failed to insert image");
+        images
+            .insert(ss_probe_target.id(), ss_probe_tex)
+            .expect("failed to insert image");
+        images
+            .insert(ss_bounce_target.id(), ss_bounce_tex)
+            .expect("failed to insert image");
+        images
+            .insert(ss_blend_target.id(), ss_blend_tex)
+            .expect("failed to insert image");
+        images
+            .insert(ss_filter_target.id(), ss_filter_tex)
+            .expect("failed to insert image");
+        images
+            .insert(ss_pose_target.id(), ss_pose_tex)
+            .expect("failed to insert image");
 
         Self {
             sdf_target,

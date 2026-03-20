@@ -28,7 +28,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let probe_tile_origin_screen = tile_xy * cfg.probe_size;
 
     // Get current frame.
-    let probe_offset_world  = halton_jitter * probe_size_f32;
+    let probe_offset_world  = halton_jitter * probe_size_f32 * camera_params.pixel_world_size;
     let probe_center_world_unbiased = screen_to_world(
                                               probe_tile_origin_screen,
                                               camera_params.screen_size,

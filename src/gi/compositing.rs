@@ -232,6 +232,8 @@ pub fn setup_post_processing_camera(
             order: 1,
             ..default()
         },
+        // Ensure pixel-scale projection matches the post-processing quad size
+        Projection::Orthographic(OrthographicProjection::default_2d()),
         Bloom {
             intensity: 0.1,
             ..default()

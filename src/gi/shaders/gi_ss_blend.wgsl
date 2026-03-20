@@ -35,7 +35,7 @@ fn read_probe(
     let data        = textureLoad(ss_bounce_in, probe_atlas_pose);
     var val         = data.xyz;
 
-    let halton_offset  = unpack2x16float(bitcast<u32>(data.w)) * probe_size_f32 * 1.0;
+    let halton_offset  = unpack2x16float(bitcast<u32>(data.w)) * probe_size_f32 * camera_params.pixel_world_size.x;
     let probe_pose     = screen_to_world(
         probe_screen_pose,
         camera_params.screen_size,
@@ -66,10 +66,10 @@ fn get_probe_tile_origin(
     ) * vec2<i32>(probe_id % probe_size, probe_id / probe_size);
 }
 
-fn gauss(x: f32) -> f32 {
+fn gauss(x: f32, pws: f32) -> f32 {
     let a = 4.0;
-    let b = 0.2;
-    let c = 0.05;
+    let b = 0.2 * pws;
+    let c = 0.05 * pws;
 
     let d = 1.0 / (2.0 * c * c);
 
@@ -119,7 +119,8 @@ fn estimate_probes_at(
 
     // Compute bilateral filter with gauss function
     let d = distance(base_probe.pose, sample_pose);
-    let g = gauss(d);
+    let pws = camera_params.pixel_world_size.x;
+    let g = gauss(d, pws);
 
     var total_q = base_probe.val * g;
     var total_w = g;

@@ -38,7 +38,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let halton            = unpack2x16float(bitcast<u32>(probe.w));
     let probe_tile_origin_screen = tile_xy * cfg.probe_size;
 
-    let probe_offset_world  = halton * probe_size_f32;
+    let probe_offset_world  = halton * probe_size_f32 * camera_params.pixel_world_size;
     let probe_center_world  = screen_to_world(
         probe_tile_origin_screen,
         camera_params.screen_size,
@@ -55,8 +55,8 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     var rays_per_sample      = cfg.indirect_rays_per_sample;
     let golden_angle         = pi * mm;
 
-    var r_bias = 4.0;
-    var r_step = 16.0;
+    var r_bias = 4.0 * camera_params.pixel_world_size.x;
+    var r_step = 16.0 * camera_params.pixel_world_size.x;
     var hh = radical_inverse_vdc(frame_index) / f32(reservoir_size);
 
     {

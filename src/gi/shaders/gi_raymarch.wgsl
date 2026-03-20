@@ -63,7 +63,7 @@ fn raymarch(
         if (scene_dist > 0.0) {
             inside = false;
         }
-        let ray_travel = max(abs(scene_dist), 0.5);
+        let ray_travel = max(abs(scene_dist), camera_params.pixel_world_size.x);
 
         if (rm_jitter_contrib > 0.0) {
             // Jitter step.
@@ -176,7 +176,7 @@ fn raymarch_bounce(
             return RayMarchResult(0, i, h);
         }
 
-        let ray_travel = max(abs(scene_dist), 0.5);
+        let ray_travel = max(abs(scene_dist), camera_params.pixel_world_size.x);
 
         ray_progress += ray_travel * (1.0 - rm_jitter_contrib)
                       + rm_jitter_contrib * ray_travel * hash(h);

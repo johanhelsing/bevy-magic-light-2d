@@ -14,10 +14,10 @@
 @group(0) @binding(6) var          ss_filter_out:     texture_storage_2d<rgba32float, write>;
 @group(0) @binding(7) var          ss_pose_out:      texture_storage_2d<rg32float, write>;
 
-fn gauss(x: f32) -> f32 {
+fn gauss(x: f32, pws: f32) -> f32 {
     let a = 4.0;
-    let b = 0.2;
-    let c = 0.05;
+    let b = 0.2 * pws;
+    let c = 0.05 * pws;
 
     let d = 1.0 / (2.0 * c * c);
 
@@ -87,7 +87,8 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 
             let d = distance(p_world_pose, sample_world_pose);
             let x = distance(p_sample, base_probe_sample);
-            let g = gauss(x) * gauss(d);
+            let pws = camera_params.pixel_world_size.x;
+            let g = gauss(x, pws) * gauss(d, pws);
 
             total_q += p_sample * g;
             total_w += g;

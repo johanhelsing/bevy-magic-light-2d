@@ -184,6 +184,13 @@ pub fn system_extract_pipeline_assets(
             camera_params.sdf_scale     = Vec2::splat(scale);
             camera_params.inv_sdf_scale = Vec2::splat(1. / scale);
 
+            // Compute world units per pixel from the camera's projection.
+            // inverse_view_proj maps NDC to world. NDC spans [-1,1] = 2 units.
+            let ndc_top_right = view * inverse_projection * Vec4::new(1.0, 1.0, 0.0, 1.0);
+            let ndc_bot_left  = view * inverse_projection * Vec4::new(-1.0, -1.0, 0.0, 1.0);
+            let world_extent = (ndc_top_right.xy() - ndc_bot_left.xy()).abs();
+            camera_params.pixel_world_size = world_extent / camera_params.screen_size;
+
             let probes = gpu_pipeline_assets.probes.get_mut();
             probes.data[*gpu_frame_counter as usize].camera_pose =
                 camera_global_transform.translation().truncate();

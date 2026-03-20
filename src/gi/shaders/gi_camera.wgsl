@@ -4,9 +4,10 @@ struct CameraParams {
     screen_size:         vec2<f32>,
     screen_size_inv:     vec2<f32>,
     view_proj:           mat4x4<f32>,
-    inverse_view_proj :  mat4x4<f32>,
-    sdf_scale: vec2<f32>,
-    inv_sdf_scale: vec2<f32>,
+    inverse_view_proj:   mat4x4<f32>,
+    sdf_scale:           vec2<f32>,
+    inv_sdf_scale:       vec2<f32>,
+    pixel_world_size:    vec2<f32>,
 }
 
 fn screen_to_ndc(

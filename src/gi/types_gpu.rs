@@ -60,6 +60,9 @@ pub struct GpuCameraParams {
     pub inverse_view_proj: Mat4,
     pub sdf_scale:         Vec2,
     pub inv_sdf_scale:     Vec2,
+    /// World units per screen pixel. Allows shaders to scale constants
+    /// that were originally tuned for pixel-scale (1 world unit = 1 pixel).
+    pub pixel_world_size:  Vec2,
 }
 
 #[rustfmt::skip]

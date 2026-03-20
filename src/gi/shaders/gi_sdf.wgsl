@@ -36,12 +36,8 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
         camera_params.sdf_scale);
     let r = 1.2;
 
-     var sdf_merged   = round_merge(
-        1e+10,
-        sdf_aabb_occluder(world_pose.xy, 0),
-        r,
-     );
-     for (var i: i32 = 1; i < i32(light_occluder_buffer.count); i++) {
+     var sdf_merged = 1e+10;
+     for (var i: i32 = 0; i < i32(light_occluder_buffer.count); i++) {
         sdf_merged = round_merge(sdf_merged, sdf_aabb_occluder(world_pose.xy, i), r);
      }
 

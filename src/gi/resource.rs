@@ -23,6 +23,7 @@ impl Default for TargetScalingParams
 }
 
 #[derive(Resource, Default, Copy, Clone, Reflect)]
+#[reflect(Resource)]
 pub struct BevyMagicLight2DSettings
 {
     pub light_pass_params:     LightPassParams,

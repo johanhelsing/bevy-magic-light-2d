@@ -66,10 +66,10 @@ fn get_probe_tile_origin(
     ) * vec2<i32>(probe_id % probe_size, probe_id / probe_size);
 }
 
-fn gauss(x: f32, pws: f32) -> f32 {
+fn gauss(x: f32) -> f32 {
     let a = 4.0;
-    let b = 0.2 * pws;
-    let c = 0.05 * pws;
+    let b = 0.2;
+    let c = 0.05;
 
     let d = 1.0 / (2.0 * c * c);
 
@@ -117,10 +117,11 @@ fn estimate_probes_at(
         return SampleResult(vec3<f32>(0.0), 0.0);
     }
 
-    // Compute bilateral filter with gauss function
+    // Compute bilateral filter with gauss function.
+    // Normalize distance to pixel space so sigma is constant (~10 px).
     let d = distance(base_probe.pose, sample_pose);
     let pws = camera_params.pixel_world_size.x;
-    let g = gauss(d, pws);
+    let g = gauss(d / pws);
 
     var total_q = base_probe.val * g;
     var total_w = g;

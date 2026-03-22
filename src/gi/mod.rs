@@ -142,13 +142,14 @@ pub fn handle_window_resize(
             .single()
             .expect("Expected exactly one primary window");
 
-        *res_target_sizes =
+        let new_sizes =
             ComputedTargetSizes::from_window(window, &res_plugin_config.target_scaling_params);
 
-        if !res_target_sizes.is_valid() {
-            // Window might be minimized, skip updating resources.
-            return;
+        if !new_sizes.is_valid() || new_sizes.primary_target_usize == res_target_sizes.primary_target_usize {
+            continue;
         }
+
+        *res_target_sizes = new_sizes;
 
         assets_mesh.insert(
             POST_PROCESSING_RECT.id(),

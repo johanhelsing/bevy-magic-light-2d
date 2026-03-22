@@ -238,24 +238,28 @@ pub fn system_queue_bind_groups(
             .as_ref()
             .expect("Targets should be initialized");
 
-        let sdf_view_image = gpu_images
-            .get(&targets.sdf_target)
-            .expect("SDF target not found");
-        let ss_probe_image = gpu_images
-            .get(&targets.ss_probe_target)
-            .expect("SS Probe target not found");
-        let ss_bounce_image = gpu_images
-            .get(&targets.ss_bounce_target)
-            .expect("SS Bounce target not found");
-        let ss_blend_image = gpu_images
-            .get(&targets.ss_blend_target)
-            .expect("SS Blend target not found");
-        let ss_filter_image = gpu_images
-            .get(&targets.ss_filter_target)
-            .expect("SS Filter target not found");
-        let ss_pose_image = gpu_images
-            .get(&targets.ss_pose_target)
-            .expect("SS Pose target not found");
+        // GPU images may not be ready yet after target recreation (resize).
+        // Return without creating bind groups — the render node will skip this frame.
+        let (
+            Some(sdf_view_image),
+            Some(ss_probe_image),
+            Some(ss_bounce_image),
+            Some(ss_blend_image),
+            Some(ss_filter_image),
+            Some(ss_pose_image),
+        ) = (
+            gpu_images.get(&targets.sdf_target),
+            gpu_images.get(&targets.ss_probe_target),
+            gpu_images.get(&targets.ss_bounce_target),
+            gpu_images.get(&targets.ss_blend_target),
+            gpu_images.get(&targets.ss_filter_target),
+            gpu_images.get(&targets.ss_pose_target),
+        )
+        else {
+            // Clear stale bind groups so the render node doesn't use old GPU textures.
+            commands.remove_resource::<LightPassPipelineBindGroups>();
+            return;
+        };
 
         let sdf_layout = pipeline_cache.get_bind_group_layout(&pipeline.sdf_bind_group_layout);
         let ss_probe_layout =

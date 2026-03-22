@@ -71,9 +71,13 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let final_walls   = in_walls_diffuse.xyz   * floor_irradiance_srgb;
     let final_objects = in_objects_diffuse.xyz * objects_irradiance_srgb;
 
-    var out = vec4<f32>(final_floor, 1.0);
-        out = vec4<f32>(mix(out.xyz, final_walls.xyz, in_walls_diffuse.w), 1.0);
-        out = vec4<f32>(mix(out.xyz, final_objects.xyz, in_objects_diffuse.w), 1.0);
+    // Composite layers. Alpha tracks whether any geometry is present,
+    // so areas with no content are transparent (stars show through).
+    let has_geometry = max(in_floor_diffuse.a, max(in_walls_diffuse.a, in_objects_diffuse.a));
+
+    var out = vec4<f32>(final_floor, has_geometry);
+        out = vec4<f32>(mix(out.xyz, final_walls.xyz, in_walls_diffuse.w), has_geometry);
+        out = vec4<f32>(mix(out.xyz, final_objects.xyz, in_objects_diffuse.w), has_geometry);
 
     return out;
 }

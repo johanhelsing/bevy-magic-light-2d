@@ -7,6 +7,10 @@ use bevy::prelude::*;
 use bevy::reflect::TypePath;
 use bevy::render::render_resource::{
     AsBindGroup,
+    BlendComponent,
+    BlendFactor,
+    BlendOperation,
+    BlendState,
     Extent3d,
     RenderPipelineDescriptor,
     SpecializedMeshPipelineError,
@@ -185,6 +189,28 @@ impl Material2d for PostProcessingMaterial
             "MAX_CASCADES_PER_LIGHT".to_string(),
             MAX_CASCADES_PER_LIGHT as u32,
         ));
+
+        // Alpha blending so transparent areas (no geometry) show stars underneath.
+        let blend = BlendState {
+            color: BlendComponent {
+                src_factor: BlendFactor::SrcAlpha,
+                dst_factor: BlendFactor::OneMinusSrcAlpha,
+                operation:  BlendOperation::Add,
+            },
+            alpha: BlendComponent {
+                src_factor: BlendFactor::One,
+                dst_factor: BlendFactor::OneMinusSrcAlpha,
+                operation:  BlendOperation::Add,
+            },
+        };
+        if let Some(ref mut fragment) = descriptor.fragment {
+            for target in &mut fragment.targets {
+                if let Some(ref mut state) = target {
+                    state.blend = Some(blend);
+                }
+            }
+        }
+
         Ok(())
     }
 }

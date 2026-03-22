@@ -14,7 +14,7 @@ fn main()
 {
     // Basic setup.
     App::new()
-        .insert_resource(ClearColor(Color::srgba_u8(255, 255, 255, 0)))
+        .insert_resource(ClearColor(Color::srgba_u8(255, 255, 255, 255)))
         .add_plugins((
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {

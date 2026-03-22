@@ -3,9 +3,11 @@ use bevy::prelude::*;
 
 #[rustfmt::skip]
 #[derive(Reflect, Component, Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[require(VisibilityClass)]
 #[component(on_add = visibility::add_visibility_class::<OmniLightSource2D>)]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", reflect(Serialize, Deserialize))]
 pub struct OmniLightSource2D {
     pub intensity:          f32,
     pub color:              Color,
@@ -16,9 +18,11 @@ pub struct OmniLightSource2D {
 
 #[rustfmt::skip]
 #[derive(Reflect, Component, Default, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[require(VisibilityClass)]
 #[component(on_add = visibility::add_visibility_class::<LightOccluder2D>)]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", reflect(Serialize, Deserialize))]
 pub struct LightOccluder2D {
     pub h_size: Vec2,
 }
@@ -42,15 +46,19 @@ impl From<Vec2> for LightOccluder2D
 }
 
 #[rustfmt::skip]
-#[derive(Reflect, Component, Default)]
+#[derive(Reflect, Component, Default, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", reflect(Serialize, Deserialize))]
 pub struct SkylightMask2D {
     pub h_size: Vec2,
 }
 
 #[rustfmt::skip]
 #[derive(Reflect, Component, Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[reflect(Component)]
+#[cfg_attr(feature = "serde", reflect(Serialize, Deserialize))]
 pub struct SkylightLight2D {
     pub color:     Color,
     pub intensity: f32,

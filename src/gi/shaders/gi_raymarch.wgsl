@@ -36,7 +36,7 @@ fn raymarch(
     var ray_progress:   f32    = 0.0;
     var h                      = vec2<f32>(0.0);
     var h_prev                 = h;
-    let min_sdf                = 1e-4;
+    let min_sdf                = camera_params.pixel_world_size.x * 0.6;
     var inside                 = true;
     let max_inside_dist        = 20.0;
     let max_inside_dist_sq     = max_inside_dist * max_inside_dist;
@@ -96,7 +96,7 @@ fn raymarch_primary(
     var ray_progress:   f32    = 0.0;
     var h                      = vec2<f32>(0.0);
     var h_prev                 = h;
-    let min_sdf                = 1e-4;
+    let min_sdf                = camera_params.pixel_world_size.x * 0.6;
 
     for (var i: i32 = 0; i < max_steps; i++) {
 
@@ -155,7 +155,7 @@ fn raymarch_bounce(
     var ray_progress:   f32    = 0.0;
     var h                      = vec2<f32>(0.0);
     var h_prev                 = h;
-    let min_sdf                = 1e-4;
+    let min_sdf                = camera_params.pixel_world_size.x * 0.6;
 
     for (var i: i32 = 0; i < max_steps; i++) {
 

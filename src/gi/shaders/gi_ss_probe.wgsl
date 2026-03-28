@@ -53,16 +53,14 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
         }
     }
 
-    var probe_irradiance = vec3<f32>(0.0);
+    let skylight = cfg.skylight_color * is_masked;
+    var probe_irradiance = vec3<f32>(skylight);
 
     let uv = world_to_sdf_uv(probe_center_world_unbiased, camera_params.view_proj, camera_params.inv_sdf_scale);
     let dist = bilinear_sample_r( sdf_in, sdf_in_sampler, uv);
     if dist > 0.0 {
 
-        let skylight = cfg.skylight_color * is_masked;;
-
         // Compute direct irradiance from lights in the current frame.
-        probe_irradiance = vec3<f32>(skylight);
         for (var i: i32 = 0; i < i32(lights_source_buffer.count); i++) {
 
             let light = lights_source_buffer.data[i];

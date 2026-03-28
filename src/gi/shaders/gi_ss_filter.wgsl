@@ -75,8 +75,14 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 
             let p_sample = textureLoad(ss_blend_in, p_grid_pose).xyz;
 
-            // Discard occluded probes.
-            if raymarch_primary(sample_world_pose, p_world_pose,
+            // Skip occlusion check if both points are inside an occluder.
+            let sample_sdf = bilinear_sample_r(sdf_in, sdf_in_sampler,
+                world_to_sdf_uv(sample_world_pose, camera_params.view_proj, camera_params.inv_sdf_scale));
+            let probe_sdf = bilinear_sample_r(sdf_in, sdf_in_sampler,
+                world_to_sdf_uv(p_world_pose, camera_params.view_proj, camera_params.inv_sdf_scale));
+            let sdf_eps = camera_params.pixel_world_size.x * 2.0;
+            let both_inside = sample_sdf <= sdf_eps && probe_sdf <= sdf_eps;
+            if !both_inside && raymarch_primary(sample_world_pose, p_world_pose,
                 8,
                 sdf_in,
                 sdf_in_sampler,

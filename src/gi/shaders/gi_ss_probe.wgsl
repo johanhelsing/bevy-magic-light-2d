@@ -56,38 +56,36 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let skylight = cfg.skylight_color * is_masked;
     var probe_irradiance = vec3<f32>(skylight);
 
-    let uv = world_to_sdf_uv(probe_center_world_unbiased, camera_params.view_proj, camera_params.inv_sdf_scale);
-    let dist = bilinear_sample_r( sdf_in, sdf_in_sampler, uv);
-    if dist > 0.0 {
+    // Compute direct irradiance from lights in the current frame.
+    // Probes inside occluders will have all marches fail naturally, so no
+    // explicit SDF gate is needed — and avoiding the hard dist > 0 threshold
+    // prevents boundary probes from flickering between skylight-only and
+    // skylight+lights as the occluder moves through the probe grid.
+    for (var i: i32 = 0; i < i32(lights_source_buffer.count); i++) {
 
-        // Compute direct irradiance from lights in the current frame.
-        for (var i: i32 = 0; i < i32(lights_source_buffer.count); i++) {
+        let light = lights_source_buffer.data[i];
 
-            let light = lights_source_buffer.data[i];
+        let ray_result = raymarch_primary(
+            probe_center_world,
+            light.center,
+            32,
+            sdf_in,
+            sdf_in_sampler,
+            camera_params,
+            0.3
+        );
 
-            let ray_result = raymarch_primary(
-                probe_center_world,
-                light.center,
-                32,
-                sdf_in,
-                sdf_in_sampler,
-                camera_params,
-                0.3
-            );
+        let att = light_attenuation_r_two(
+            probe_center_world,
+            light.center,
+            light.falloff.x,
+            light.falloff.y,
+            light.falloff.z,
+        );
 
-            let att = light_attenuation_r_two(
-                probe_center_world,
-                light.center,
-                light.falloff.x,
-                light.falloff.y,
-                light.falloff.z,
-            );
-
-            if (ray_result.success > 0) {
-                probe_irradiance += light.color * att * light.intensity;
-            }
+        if (ray_result.success > 0) {
+            probe_irradiance += light.color * att * light.intensity;
         }
-
     }
 
     // Coordinates of the screen-space cache output tile.

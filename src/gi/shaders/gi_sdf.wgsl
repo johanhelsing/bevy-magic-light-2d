@@ -34,11 +34,9 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
      let world_pose = sdf_uv_to_world(uv,
         camera_params.inverse_view_proj,
         camera_params.sdf_scale);
-    let r = camera_params.pixel_world_size.x * 1.2;
-
      var sdf_merged = 1e+10;
      for (var i: i32 = 0; i < i32(light_occluder_buffer.count); i++) {
-        sdf_merged = round_merge(sdf_merged, sdf_aabb_occluder(world_pose.xy, i), r);
+        sdf_merged = min(sdf_merged, sdf_aabb_occluder(world_pose.xy, i));
      }
 
     textureStore(sdf_out, texel_pos, vec4<f32>(sdf_merged, 0.0, 0.0, 0.0));

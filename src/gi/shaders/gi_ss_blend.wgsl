@@ -66,14 +66,13 @@ fn get_probe_tile_origin(
     ) * vec2<i32>(probe_id % probe_size, probe_id / probe_size);
 }
 
-fn gauss(x: f32) -> f32 {
-    let a = 4.0;
-    let b = 0.2;
-    let c = 0.05;
-
-    let d = 1.0 / (2.0 * c * c);
-
-    return a * exp(- (x - b) * (x - b) / d);
+// Spatial Gaussian for temporal reprojection: sigma = probe_size pixels.
+// Weights historical probe samples by how close their jittered world position
+// is to the current probe center. All Halton sub-tile jitter positions
+// (0..probe_size pixels away) receive meaningful weight.
+fn gauss_spatial(d_pixels: f32, probe_size: f32) -> f32 {
+    let sigma = probe_size;
+    return exp(-d_pixels * d_pixels / (2.0 * sigma * sigma));
 }
 
 fn estimate_probes_at(
@@ -117,11 +116,11 @@ fn estimate_probes_at(
         return SampleResult(vec3<f32>(0.0), 0.0);
     }
 
-    // Compute bilateral filter with gauss function.
-    // Normalize distance to pixel space so sigma is constant (~10 px).
+    // Weight by how close the reprojected probe is to the current probe center.
     let d = distance(base_probe.pose, sample_pose);
     let pws = camera_params.pixel_world_size.x;
-    let g = gauss(d / pws);
+    let probe_size_f = f32(cfg.probe_size);
+    let g = gauss_spatial(d / pws, probe_size_f);
 
     var total_q = base_probe.val * g;
     var total_w = g;

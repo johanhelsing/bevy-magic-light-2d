@@ -14,14 +14,18 @@
 @group(0) @binding(6) var          ss_filter_out:     texture_storage_2d<rgba32float, write>;
 @group(0) @binding(7) var          ss_pose_out:      texture_storage_2d<rg32float, write>;
 
-fn gauss(x: f32) -> f32 {
-    let a = 4.0;
-    let b = 0.2;
-    let c = 0.05;
+// Spatial Gaussian: standard bilateral, sigma = probe_size pixels.
+// Adjacent probes are probe_size pixels apart → weight ≈ 0.61.
+fn gauss_spatial(d_pixels: f32, probe_size: f32) -> f32 {
+    let sigma = probe_size;
+    return exp(-d_pixels * d_pixels / (2.0 * sigma * sigma));
+}
 
-    let d = 1.0 / (2.0 * c * c);
-
-    return a * exp(- (x - b) * (x - b) / d);
+// Range Gaussian: standard bilateral, sigma = 0.5 irradiance units.
+// Preserves shadow edges while smoothing within uniform-lit regions.
+fn gauss_range(irradiance_diff: f32) -> f32 {
+    let sigma = 0.5;
+    return exp(-irradiance_diff * irradiance_diff / (2.0 * sigma * sigma));
 }
 
 
@@ -35,15 +39,10 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
         camera_params.screen_size_inv,
     );
 
-    let base_probe_screen_pose = screen_pose;
     let base_probe_grid_pose   = screen_pose / cfg.probe_size;
-    let base_probe_sample      = textureLoad(ss_blend_in, base_probe_screen_pose).xyz;
-    let base_probe_world_pose  = screen_to_world(
-        base_probe_screen_pose,
-        camera_params.screen_size,
-        camera_params.inverse_view_proj,
-        camera_params.screen_size_inv,
-    );
+    // Reference irradiance: the blended probe that contains this pixel.
+    // ss_blend_in is probe-grid-sized, so index with grid coords (not screen coords).
+    let base_probe_sample      = textureLoad(ss_blend_in, base_probe_grid_pose).xyz;
 
     let kernel_hl = i32(cfg.smooth_kernel_size_w);
     let kernel_hr = i32(cfg.smooth_kernel_size_h);
@@ -52,13 +51,14 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     var total_q = vec3<f32>(0.0);
     var total_samples = 0;
 
-    for (var i = -kernel_hl; i <= kernel_hr; i++) {
-        for (var j = -kernel_hl; j <= kernel_hr; j++) {
+    for (var i = -kernel_hl; i <= kernel_hl; i++) {
+        for (var j = -kernel_hr; j <= kernel_hr; j++) {
 
             let offset = vec2<i32>(i, j);
 
             let p_grid_pose   = base_probe_grid_pose + offset;
-            let p_screen_pose = (base_probe_grid_pose + offset) * cfg.probe_size;
+            // Use probe tile center so distance is symmetric within the tile.
+            let p_screen_pose = (base_probe_grid_pose + offset) * cfg.probe_size + cfg.probe_size / 2;
 
             // Discard offscreen;
             let p_ndc = screen_to_ndc(p_screen_pose, camera_params.screen_size, camera_params.screen_size_inv);
@@ -93,10 +93,9 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 
             let d = distance(p_world_pose, sample_world_pose);
             let x = distance(p_sample, base_probe_sample);
-            // Normalize spatial distance to pixel space so the Gaussian
-            // sigma is ~10 pixels regardless of world scale.
             let pws = camera_params.pixel_world_size.x;
-            let g = gauss(x) * gauss(d / pws);
+            let probe_size_f = f32(cfg.probe_size);
+            let g = gauss_spatial(d / pws, probe_size_f) * gauss_range(x);
 
             total_q += p_sample * g;
             total_w += g;

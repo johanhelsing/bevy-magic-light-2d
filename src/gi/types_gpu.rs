@@ -95,8 +95,8 @@ impl Default for GpuLightPassParams
             skylight_color:   Vec3::new(0.003, 0.0078, 0.058) / 100.0,
 
             reservoir_size:         16,
-            smooth_kernel_size_h:   2,
-            smooth_kernel_size_w:   1,
+            smooth_kernel_size_h:   3,
+            smooth_kernel_size_w:   3,
             direct_light_contrib:   0.2,
             indirect_light_contrib: 0.8,
 

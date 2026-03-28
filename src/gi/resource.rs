@@ -66,7 +66,7 @@ impl Default for LightPassParams
     {
         Self {
             reservoir_size:              8,
-            smooth_kernel_size:          (2, 1),
+            smooth_kernel_size:          (3, 3),
             direct_light_contrib:        0.5,
             indirect_light_contrib:      0.5,
             indirect_rays_per_sample:    32,

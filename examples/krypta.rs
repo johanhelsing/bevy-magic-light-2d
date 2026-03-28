@@ -60,7 +60,6 @@ fn main()
         .insert_resource(BevyMagicLight2DSettings {
             light_pass_params: LightPassParams {
                 reservoir_size: 16,
-                smooth_kernel_size: (2, 1),
                 direct_light_contrib: 0.2,
                 indirect_light_contrib: 0.8,
                 ..default()

@@ -15,10 +15,11 @@ egui = ["dep:bevy-inspector-egui"]
 serde = ["dep:serde"]
 
 [dependencies]
-bevy = { version = "0.18.*", default-features = false, features = [
+bevy = { version = "0.19", default-features = false, features = [
   "bevy_render",
   "bevy_core_pipeline",
   "bevy_winit",
+  "x11",
   "bevy_asset",
   "bevy_sprite",
   "bevy_sprite_render",
@@ -31,13 +32,13 @@ bevy = { version = "0.18.*", default-features = false, features = [
   "embedded_watcher",
   "multi_threaded",
 ] }
-bevy-inspector-egui = { version = "0.36.*", optional = true }
+bevy-inspector-egui = { version = "0.37", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 log = "0.4.*"
 rand = "0.9.*"
 
 [dev-dependencies]
-bevy = "0.18.*"
+bevy = "0.19"
 
 [profile.release]
 codegen-units = 1

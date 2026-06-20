@@ -1,9 +1,8 @@
 use bevy::asset::embedded_asset;
 use bevy::prelude::*;
 use bevy::render::extract_resource::ExtractResourcePlugin;
-use bevy::render::render_graph::{self, RenderGraph, RenderLabel};
 use bevy::render::render_resource::*;
-use bevy::render::renderer::RenderContext;
+use bevy::render::renderer::{RenderContext, RenderGraph, RenderGraphSystems};
 use bevy::render::{Render, RenderApp, RenderSystems};
 use bevy::shader::load_shader_library;
 use bevy::sprite_render::Material2dPlugin;
@@ -43,9 +42,6 @@ pub mod util;
 const WORKGROUP_SIZE: u32 = 8;
 
 pub struct BevyMagicLight2DPlugin;
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
-pub struct LightPass2DRenderLabel;
 
 impl Plugin for BevyMagicLight2DPlugin
 {
@@ -97,14 +93,14 @@ impl Plugin for BevyMagicLight2DPlugin
                     system_prepare_pipeline_assets.in_set(RenderSystems::Prepare),
                     system_queue_bind_groups.in_set(RenderSystems::Queue),
                 ),
-            );
-
-        let mut render_graph = render_app.world_mut().resource_mut::<RenderGraph>();
-        render_graph.add_node(LightPass2DRenderLabel, LightPass2DNode::default());
-        render_graph.add_node_edge(
-            LightPass2DRenderLabel,
-            bevy::render::graph::CameraDriverLabel,
-        )
+            )
+            // 0.19: render-graph `Node` -> a system in the root `RenderGraph` schedule.
+            // The GI compute pass is global (not per-view), so it lives in the top-level
+            // schedule rather than `Core2d`. Placing it in `Begin` (chained before
+            // `Render`) makes its command buffer submit before the cameras' main passes
+            // (command buffers flush in topological system order), preserving the old
+            // `add_node_edge(.., CameraDriverLabel)` ordering and its one-frame latency.
+            .add_systems(RenderGraph, light_pass_2d.in_set(RenderGraphSystems::Begin));
     }
 
     fn finish(&self, app: &mut App)
@@ -116,9 +112,6 @@ impl Plugin for BevyMagicLight2DPlugin
             .init_resource::<ComputedTargetSizes>();
     }
 }
-
-#[derive(Default)]
-struct LightPass2DNode {}
 
 #[rustfmt::skip]
 #[allow(clippy::too_many_arguments)]
@@ -181,17 +174,8 @@ pub fn detect_target_sizes(
     *res_target_sizes = ComputedTargetSizes::from_window(window, &res_plugin_config.target_scaling_params);
 }
 
-impl render_graph::Node for LightPass2DNode
-{
-    fn update(&mut self, _world: &mut World) {}
-
-    #[rustfmt::skip]
-    fn run(
-        &self,
-        _: &mut render_graph::RenderGraphContext,
-        render_context: &mut RenderContext,
-        world: &World,
-    ) -> Result<(), render_graph::NodeRunError> {
+#[rustfmt::skip]
+fn light_pass_2d(world: &World, mut render_context: RenderContext) {
         if let Some(pipeline_bind_groups) = world.get_resource::<LightPassPipelineBindGroups>() {
             let pipeline_cache = world.resource::<PipelineCache>();
             let pipeline = world.resource::<LightPassPipeline>();
@@ -262,7 +246,4 @@ impl render_graph::Node for LightPass2DNode
         } else {
             log::debug!("Failed to get bind groups");
         }
-
-        Ok(())
-    }
 }

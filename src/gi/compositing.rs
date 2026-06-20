@@ -91,7 +91,7 @@ impl CameraTargets
                 label:           Some("target_floor"),
                 size:            target_size,
                 dimension:       TextureDimension::D2,
-                format:          TextureFormat::bevy_default(),
+                format:          TextureFormat::Rgba8UnormSrgb,
                 mip_level_count: 1,
                 sample_count:    1,
                 usage:           TextureUsages::TEXTURE_BINDING
@@ -106,7 +106,7 @@ impl CameraTargets
                 label:           Some("target_walls"),
                 size:            target_size,
                 dimension:       TextureDimension::D2,
-                format:          TextureFormat::bevy_default(),
+                format:          TextureFormat::Rgba8UnormSrgb,
                 mip_level_count: 1,
                 sample_count:    1,
                 usage:           TextureUsages::TEXTURE_BINDING
@@ -122,7 +122,7 @@ impl CameraTargets
                 label:           Some("target_objects"),
                 size:            target_size,
                 dimension:       TextureDimension::D2,
-                format:          TextureFormat::bevy_default(),
+                format:          TextureFormat::Rgba8UnormSrgb,
                 mip_level_count: 1,
                 sample_count:    1,
                 usage:           TextureUsages::TEXTURE_BINDING

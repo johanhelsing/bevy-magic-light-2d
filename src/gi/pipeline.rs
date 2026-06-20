@@ -833,7 +833,7 @@ impl FromWorld for LightPassPipeline
             shader:                           shader_sdf,
             shader_defs:                      vec![],
             entry_point:                      Some(SDF_PIPELINE_ENTRY.into()),
-            push_constant_ranges:             vec![],
+            immediate_size:                   0,
             zero_initialize_workgroup_memory: false,
         });
 
@@ -843,7 +843,7 @@ impl FromWorld for LightPassPipeline
             shader:                           gi_ss_probe,
             shader_defs:                      vec![],
             entry_point:                      Some(SS_PROBE_PIPELINE_ENTRY.into()),
-            push_constant_ranges:             vec![],
+            immediate_size:                   0,
             zero_initialize_workgroup_memory: false,
         });
 
@@ -853,7 +853,7 @@ impl FromWorld for LightPassPipeline
             shader:                           gi_ss_bounce,
             shader_defs:                      vec![],
             entry_point:                      Some(SS_BOUNCE_PIPELINE_ENTRY.into()),
-            push_constant_ranges:             vec![],
+            immediate_size:                   0,
             zero_initialize_workgroup_memory: false,
         });
 
@@ -863,7 +863,7 @@ impl FromWorld for LightPassPipeline
             shader:                           gi_ss_blend,
             shader_defs:                      vec![],
             entry_point:                      Some(SS_BLEND_PIPELINE_ENTRY.into()),
-            push_constant_ranges:             vec![],
+            immediate_size:                   0,
             zero_initialize_workgroup_memory: false,
         });
 
@@ -873,7 +873,7 @@ impl FromWorld for LightPassPipeline
             shader:                           gi_ss_filter,
             shader_defs:                      vec![],
             entry_point:                      Some(SS_FILTER_PIPELINE_ENTRY.into()),
-            push_constant_ranges:             vec![],
+            immediate_size:                   0,
             zero_initialize_workgroup_memory: false,
         });
 

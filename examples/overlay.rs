@@ -16,7 +16,7 @@ use bevy::camera::visibility::RenderLayers;
 use bevy::camera::RenderTarget;
 use bevy::gizmos::config::{DefaultGizmoConfigGroup, GizmoConfigStore};
 use bevy::prelude::*;
-use bevy::render::view::Hdr;
+use bevy::camera::Hdr;
 use bevy::window::WindowResolution;
 use bevy_magic_light_2d::prelude::*;
 

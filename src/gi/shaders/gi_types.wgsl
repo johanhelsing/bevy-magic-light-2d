@@ -1,10 +1,13 @@
 #define_import_path bevy_magic_light_2d::gi_types
 
 struct LightSource {
-    center:    vec2<f32>,
-    intensity: f32,
-    color:     vec3<f32>,
-    falloff:   vec3<f32>,
+    center:         vec2<f32>,
+    intensity:      f32,
+    color:          vec3<f32>,
+    falloff:        vec3<f32>,
+    cone_dir:       vec2<f32>,
+    cone_cos:       f32,
+    cone_cos_inner: f32,
 }
 
 struct LightSourceBuffer {

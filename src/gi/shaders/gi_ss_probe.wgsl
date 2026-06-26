@@ -65,6 +65,20 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 
         let light = lights_source_buffer.data[i];
 
+        // Cone (spotlight) shaping. Computed before the raymarch so a narrow
+        // cone skips the expensive 32-step march for every probe outside it.
+        // Full-circle lights have cone_cos = cos(PI) = -1, so cone == 1 here.
+        let to_probe = normalize(probe_center_world - light.center);
+        // Linear ramp from 0 at the outer rim (cone_cos) to 1 at the inner edge
+        // (cone_cos_inner). The epsilon guard keeps this well-defined when the
+        // two coincide (full circle: both = cos(PI) = -1), where it collapses to
+        // ~1 everywhere — so existing omni lights are unchanged.
+        let cone_denom = max(light.cone_cos_inner - light.cone_cos, 1e-4);
+        let cone = clamp((dot(to_probe, light.cone_dir) - light.cone_cos) / cone_denom, 0.0, 1.0);
+        if (cone <= 0.0) {
+            continue;
+        }
+
         let ray_result = raymarch_primary(
             probe_center_world,
             light.center,
@@ -84,7 +98,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
         );
 
         if (ray_result.success > 0) {
-            probe_irradiance += light.color * att * light.intensity;
+            probe_irradiance += light.color * att * light.intensity * cone;
         }
     }
 

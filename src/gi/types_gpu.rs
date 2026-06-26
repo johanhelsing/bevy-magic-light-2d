@@ -7,10 +7,18 @@ use crate::gi::types::OmniLightSource2D;
 #[rustfmt::skip]
 #[derive(Default, Clone, ShaderType)]
 pub struct GpuOmniLightSource {
-    pub center:    Vec2,
-    pub intensity: f32,
-    pub color:     Vec3,
-    pub falloff:   Vec3,
+    pub center:         Vec2,
+    pub intensity:      f32,
+    pub color:          Vec3,
+    pub falloff:        Vec3,
+    /// Normalized cone axis (spotlight direction).
+    pub cone_dir:       Vec2,
+    /// Cosine of the cone half-angle (outer rim). `cos(PI) = -1` for a full
+    /// circle, so the cone test passes everywhere by default.
+    pub cone_cos:       f32,
+    /// Cosine of the inner edge (`half_angle - softness`); the cone fades from
+    /// full at `cone_cos_inner` to zero at `cone_cos`.
+    pub cone_cos_inner: f32,
 }
 
 impl GpuOmniLightSource
@@ -18,11 +26,19 @@ impl GpuOmniLightSource
     pub fn new(light: OmniLightSource2D, center: Vec2) -> Self
     {
         let color: Srgba = light.color.into();
+        let cone_dir = light.cone_direction.try_normalize().unwrap_or(Vec2::X);
+        let half_angle = light.cone_half_angle.clamp(0.0, core::f32::consts::PI);
+        let inner = (half_angle - light.cone_softness.max(0.0)).max(0.0);
         Self {
             center,
             intensity: light.intensity,
             color: color.to_vec3(),
             falloff: light.falloff,
+            cone_dir,
+            // Larger angle → smaller cosine, so the outer rim has the smaller
+            // value and cone_cos_inner >= cone_cos.
+            cone_cos: half_angle.cos(),
+            cone_cos_inner: inner.cos(),
         }
     }
 }

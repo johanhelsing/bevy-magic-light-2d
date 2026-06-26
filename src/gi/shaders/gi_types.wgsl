@@ -8,6 +8,7 @@ struct LightSource {
     cone_dir:       vec2<f32>,
     cone_cos:       f32,
     cone_cos_inner: f32,
+    cone_near_fade: f32,
 }
 
 struct LightSourceBuffer {

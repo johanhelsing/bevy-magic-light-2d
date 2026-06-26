@@ -19,6 +19,8 @@ pub struct GpuOmniLightSource {
     /// Cosine of the inner edge (`half_angle - softness`); the cone fades from
     /// full at `cone_cos_inner` to zero at `cone_cos`.
     pub cone_cos_inner: f32,
+    /// Near-field fade radius in world units (0 = off).
+    pub cone_near_fade: f32,
 }
 
 impl GpuOmniLightSource
@@ -39,6 +41,7 @@ impl GpuOmniLightSource
             // value and cone_cos_inner >= cone_cos.
             cone_cos: half_angle.cos(),
             cone_cos_inner: inner.cos(),
+            cone_near_fade: light.cone_near_fade.max(0.0),
         }
     }
 }

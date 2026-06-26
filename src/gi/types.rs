@@ -35,6 +35,13 @@ pub struct OmniLightSource2D {
     #[reflect(default)]
     #[cfg_attr(feature = "serde", serde(default))]
     pub cone_softness:      f32,
+    /// Near-field fade radius in world units. The light ramps from 0 at its
+    /// center up to full over this distance, muting the jagged region near the
+    /// cone apex where each probe spans a large angle. `0` (default) disables it.
+    /// Fixed physical size (independent of camera zoom).
+    #[reflect(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub cone_near_fade:     f32,
 }
 
 /// Default `cone_half_angle`: a full circle, so an unconfigured or pre-cone
@@ -71,6 +78,7 @@ impl Default for OmniLightSource2D
             cone_direction:     Vec2::X,
             cone_half_angle:    core::f32::consts::PI,
             cone_softness:      0.0,
+            cone_near_fade:     0.0,
         }
     }
 }

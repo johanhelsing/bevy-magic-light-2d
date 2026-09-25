@@ -29,13 +29,16 @@ bevy = { version = "0.19", default-features = false, features = [
   "bevy_camera",
   "bevy_image",
   "bevy_mesh",
-  "embedded_watcher",
   "multi_threaded",
 ] }
 bevy-inspector-egui = { version = "0.37", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 log = "0.4.*"
 rand = "0.9.*"
+
+# The embedded asset watcher needs a filesystem notifier, which wasm lacks.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+bevy = { version = "0.19", default-features = false, features = ["embedded_watcher"] }
 
 [dev-dependencies]
 bevy = "0.19"

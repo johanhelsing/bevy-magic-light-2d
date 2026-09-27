@@ -35,6 +35,23 @@ fn screen_to_world(
     return (inverse_view_proj * vec4<f32>(screen_to_ndc(screen_pose, screen_size, screen_size_inv), 0.0, 1.0)).xy;
 }
 
+// World-space offset of a probe's Halton-jittered sample point from the
+// top-left corner of its probe tile. `jitter` is in [0,1)^2 and walks the
+// sample across the tile over the reservoir, so the samples average to the
+// tile centre.
+//
+// The y component is negated because the two spaces disagree on which way is
+// up: the tile origin comes from `screen_to_world` of a screen pose whose y
+// grows downwards, while the offset is added in world space, where y grows
+// upwards. Adding it unnegated walks the sample a full tile *above* the tile
+// it is stored for, and every light then renders one probe tile too low.
+fn probe_jitter_offset_world(
+    jitter:           vec2<f32>,
+    probe_size:       f32,
+    pixel_world_size: vec2<f32>) -> vec2<f32> {
+    return vec2<f32>(jitter.x, -jitter.y) * probe_size * pixel_world_size;
+}
+
 fn world_to_ndc(
     world_pose:  vec2<f32>,
     view_proj:   mat4x4<f32>) -> vec2<f32> {

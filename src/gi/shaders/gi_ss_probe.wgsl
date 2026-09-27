@@ -1,6 +1,6 @@
 #import bevy_magic_light_2d::gi_types::{LightPassParams, ProbeDataBuffer, SkylightMaskBuffer, LightSourceBuffer}
 #import bevy_magic_light_2d::gi_math
-#import bevy_magic_light_2d::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, screen_to_world, world_to_ndc, ndc_to_screen, bilinear_sample_r}
+#import bevy_magic_light_2d::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, screen_to_world, world_to_ndc, ndc_to_screen, bilinear_sample_r, probe_jitter_offset_world}
 #import bevy_magic_light_2d::gi_attenuation::light_attenuation_r_two
 #import bevy_magic_light_2d::gi_halton::hammersley2d
 #import bevy_magic_light_2d::gi_raymarch::{raymarch_bounce, raymarch_primary}
@@ -28,7 +28,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let probe_tile_origin_screen = tile_xy * cfg.probe_size;
 
     // Get current frame.
-    let probe_offset_world  = halton_jitter * probe_size_f32 * camera_params.pixel_world_size;
+    let probe_offset_world  = probe_jitter_offset_world(halton_jitter, probe_size_f32, camera_params.pixel_world_size);
     let probe_center_world_unbiased = screen_to_world(
                                               probe_tile_origin_screen,
                                               camera_params.screen_size,

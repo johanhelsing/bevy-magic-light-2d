@@ -1,6 +1,6 @@
 #import bevy_magic_light_2d::gi_types::LightPassParams
 #import bevy_magic_light_2d::gi_math::fast_normalize_2d
-#import bevy_magic_light_2d::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, screen_to_world, world_to_screen, world_to_ndc}
+#import bevy_magic_light_2d::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, screen_to_world, world_to_screen, world_to_ndc, probe_jitter_offset_world}
 #import bevy_magic_light_2d::gi_halton::radical_inverse_vdc
 #import bevy_magic_light_2d::gi_attenuation
 #import bevy_magic_light_2d::gi_raymarch::raymarch_bounce
@@ -38,7 +38,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let halton            = unpack2x16float(bitcast<u32>(probe.w));
     let probe_tile_origin_screen = tile_xy * cfg.probe_size;
 
-    let probe_offset_world  = halton * probe_size_f32 * camera_params.pixel_world_size;
+    let probe_offset_world  = probe_jitter_offset_world(halton, probe_size_f32, camera_params.pixel_world_size);
     let probe_center_world  = screen_to_world(
         probe_tile_origin_screen,
         camera_params.screen_size,
@@ -113,7 +113,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
             let sample_xyz     = sample_probe.xyz;
 
             let sample_halton       = unpack2x16float(bitcast<u32>(sample_probe.w));
-            let sample_offset_world = sample_halton * probe_size_f32;
+            let sample_offset_world = probe_jitter_offset_world(sample_halton, probe_size_f32, camera_params.pixel_world_size);
 
             sample_world           += sample_offset_world;
 

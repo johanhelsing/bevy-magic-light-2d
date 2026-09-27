@@ -1,6 +1,6 @@
 #import bevy_magic_light_2d::gi_types::{LightOccluderBuffer, LightPassParams, ProbeDataBuffer}
 #import bevy_magic_light_2d::gi_math
-#import bevy_magic_light_2d::gi_camera::{CameraParams, screen_to_world, world_to_ndc, ndc_to_screen}
+#import bevy_magic_light_2d::gi_camera::{CameraParams, screen_to_world, world_to_ndc, ndc_to_screen, probe_jitter_offset_world}
 #import bevy_magic_light_2d::gi_halton
 #import bevy_magic_light_2d::gi_attenuation
 
@@ -35,7 +35,7 @@ fn read_probe(
     let data        = textureLoad(ss_bounce_in, probe_atlas_pose);
     var val         = data.xyz;
 
-    let halton_offset  = unpack2x16float(bitcast<u32>(data.w)) * probe_size_f32 * camera_params.pixel_world_size.x;
+    let halton_offset  = probe_jitter_offset_world(unpack2x16float(bitcast<u32>(data.w)), probe_size_f32, camera_params.pixel_world_size);
     let probe_pose     = screen_to_world(
         probe_screen_pose,
         camera_params.screen_size,

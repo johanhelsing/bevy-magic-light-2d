@@ -1,7 +1,6 @@
 use bevy::asset::uuid_handle;
 use bevy::camera::visibility::RenderLayers;
 use bevy::mesh::MeshVertexBufferLayoutRef;
-use bevy::pbr::{MAX_CASCADES_PER_LIGHT, MAX_DIRECTIONAL_LIGHTS};
 use bevy::post_process::bloom::Bloom;
 use bevy::prelude::*;
 use bevy::reflect::TypePath;
@@ -19,7 +18,7 @@ use bevy::render::render_resource::{
     TextureFormat,
     TextureUsages,
 };
-use bevy::shader::{ShaderDefVal, ShaderRef};
+use bevy::shader::ShaderRef;
 use bevy::sprite_render::{Material2d, Material2dKey};
 
 use crate::gi::constants::{POST_PROCESSING_MATERIAL, POST_PROCESSING_RECT};
@@ -176,20 +175,6 @@ impl Material2d for PostProcessingMaterial
         _key: Material2dKey<Self>,
     ) -> Result<(), SpecializedMeshPipelineError>
     {
-        let shader_defs = &mut descriptor
-            .fragment
-            .as_mut()
-            .expect("Fragment shader empty")
-            .shader_defs;
-        shader_defs.push(ShaderDefVal::UInt(
-            "MAX_DIRECTIONAL_LIGHTS".to_string(),
-            MAX_DIRECTIONAL_LIGHTS as u32,
-        ));
-        shader_defs.push(ShaderDefVal::UInt(
-            "MAX_CASCADES_PER_LIGHT".to_string(),
-            MAX_CASCADES_PER_LIGHT as u32,
-        ));
-
         // Alpha blending so transparent areas (no geometry) show stars underneath.
         let blend = BlendState {
             color: BlendComponent {

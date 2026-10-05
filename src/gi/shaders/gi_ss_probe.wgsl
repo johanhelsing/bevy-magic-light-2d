@@ -73,11 +73,11 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
         // (cone_cos_inner). The epsilon guard keeps a hard rim (the two equal)
         // well-defined.
         //
-        // An inner edge at PI (cone_cos_inner = cos(PI) = -1, every omni light)
-        // puts every direction inside it, so the ramp is skipped. It must be:
-        // that rim lies straight behind cone_dir, where the cosine is flat, and
-        // the 1e-4 epsilon there spans 0.8 degrees, which drew a thin dark
-        // streak behind every omni light (cargo-space oxql).
+        // An inner edge at PI (cone_cos_inner = cos(PI) = -1, any omni light)
+        // has every direction inside it, so the ramp is skipped. Running it
+        // would put a rim straight behind cone_dir, where the cosine is flat:
+        // the 1e-4 epsilon there spans 0.8 degrees, a thin dark streak behind
+        // the light.
         var cone = 1.0;
         if (light.cone_cos_inner > -1.0) {
             let cone_denom = max(light.cone_cos_inner - light.cone_cos, 1e-4);

@@ -67,15 +67,22 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 
         // Cone (spotlight) shaping. Computed before the raymarch so a narrow
         // cone skips the expensive 32-step march for every probe outside it.
-        // Full-circle lights have cone_cos = cos(PI) = -1, so cone == 1 here.
         let to_light = probe_center_world - light.center;
         let to_probe = normalize(to_light);
         // Linear ramp from 0 at the outer rim (cone_cos) to 1 at the inner edge
-        // (cone_cos_inner). The epsilon guard keeps this well-defined when the
-        // two coincide (full circle: both = cos(PI) = -1), where it collapses to
-        // ~1 everywhere — so existing omni lights are unchanged.
-        let cone_denom = max(light.cone_cos_inner - light.cone_cos, 1e-4);
-        var cone = clamp((dot(to_probe, light.cone_dir) - light.cone_cos) / cone_denom, 0.0, 1.0);
+        // (cone_cos_inner). The epsilon guard keeps a hard rim (the two equal)
+        // well-defined.
+        //
+        // An inner edge at PI (cone_cos_inner = cos(PI) = -1, every omni light)
+        // puts every direction inside it, so the ramp is skipped. It must be:
+        // that rim lies straight behind cone_dir, where the cosine is flat, and
+        // the 1e-4 epsilon there spans 0.8 degrees, which drew a thin dark
+        // streak behind every omni light (cargo-space oxql).
+        var cone = 1.0;
+        if (light.cone_cos_inner > -1.0) {
+            let cone_denom = max(light.cone_cos_inner - light.cone_cos, 1e-4);
+            cone = clamp((dot(to_probe, light.cone_dir) - light.cone_cos) / cone_denom, 0.0, 1.0);
+        }
 
         // Near-field fade: mute the light near its apex, where each probe spans a
         // large angle and the cone gradient aliases worst. Radius is in world

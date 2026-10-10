@@ -3,6 +3,13 @@
 #import bevy_magic_light_2d::gi_math::{fast_normalize_2d, distance_squared, hash}
 #import bevy_magic_light_2d::gi_camera::{CameraParams, sdf_uv_to_world, world_to_sdf_uv, bilinear_sample_r}
 
+// How close to an occluder a march may pass before it counts as blocked.
+// A march that starts nearer than this fails on its first step, so a caller
+// starting on a boundary moves its origin out past it first.
+fn min_march_sdf(camera_params: CameraParams) -> f32 {
+    return camera_params.pixel_world_size.x * 0.6;
+}
+
 struct RayMarchResult {
     success:  i32,      //
     step: i32,          // steps
@@ -36,7 +43,7 @@ fn raymarch(
     var ray_progress:   f32    = 0.0;
     var h                      = vec2<f32>(0.0);
     var h_prev                 = h;
-    let min_sdf                = camera_params.pixel_world_size.x * 0.6;
+    let min_sdf                = min_march_sdf(camera_params);
     var inside                 = true;
     let max_inside_dist        = 20.0;
     let max_inside_dist_sq     = max_inside_dist * max_inside_dist;
@@ -96,7 +103,7 @@ fn raymarch_primary(
     var ray_progress:   f32    = 0.0;
     var h                      = vec2<f32>(0.0);
     var h_prev                 = h;
-    let min_sdf                = camera_params.pixel_world_size.x * 0.6;
+    let min_sdf                = min_march_sdf(camera_params);
 
     for (var i: i32 = 0; i < max_steps; i++) {
 
@@ -155,7 +162,7 @@ fn raymarch_bounce(
     var ray_progress:   f32    = 0.0;
     var h                      = vec2<f32>(0.0);
     var h_prev                 = h;
-    let min_sdf                = camera_params.pixel_world_size.x * 0.6;
+    let min_sdf                = min_march_sdf(camera_params);
 
     for (var i: i32 = 0; i < max_steps; i++) {
 

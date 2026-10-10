@@ -3,7 +3,7 @@
 #import bevy_magic_light_2d::gi_camera::{CameraParams, screen_to_world, screen_to_ndc, world_to_sdf_uv, bilinear_sample_r}
 #import bevy_magic_light_2d::gi_halton
 #import bevy_magic_light_2d::gi_attenuation
-#import bevy_magic_light_2d::gi_raymarch::raymarch_primary
+#import bevy_magic_light_2d::gi_raymarch::{raymarch_primary, min_march_sdf}
 
 @group(0) @binding(0) var<uniform> camera_params:     CameraParams;
 @group(0) @binding(1) var<uniform> cfg:               LightPassParams;
@@ -73,10 +73,27 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
         world_to_sdf_uv(sample_world_pose, camera_params.view_proj, camera_params.inv_sdf_scale));
     let eps = camera_params.pixel_world_size.x * f32(cfg.probe_size);
     let sample_outside = smoothstep(-eps, eps, sample_sdf);
-    // The march fails at once from a point closer to the boundary than its
-    // own minimum distance, so pixels on that rim take their probes
-    // unoccluded instead of losing them all to a false fail.
-    let march_from_here = sample_sdf > camera_params.pixel_world_size.x * 0.6;
+    // The march fails at once from a point nearer the boundary than its
+    // own minimum distance, which every pixel on the lit face is. Such a
+    // pixel marches from itself pushed out along the SDF gradient to that
+    // distance, so the face is classified at pixel resolution and still
+    // sees only the probes it has line of sight to.
+    let min_sdf = min_march_sdf(camera_params);
+    var march_origin = sample_world_pose;
+    if sample_sdf < min_sdf {
+        let h = camera_params.pixel_world_size.x;
+        let sdf_at = sample_world_pose + vec2<f32>(h, 0.0);
+        let sdf_up = sample_world_pose + vec2<f32>(0.0, h);
+        let dx = bilinear_sample_r(sdf_in, sdf_in_sampler,
+            world_to_sdf_uv(sdf_at, camera_params.view_proj, camera_params.inv_sdf_scale)) - sample_sdf;
+        let dy = bilinear_sample_r(sdf_in, sdf_in_sampler,
+            world_to_sdf_uv(sdf_up, camera_params.view_proj, camera_params.inv_sdf_scale)) - sample_sdf;
+        let grad = vec2<f32>(dx, dy);
+        let len = length(grad);
+        if len > 0.0 {
+            march_origin += grad / len * (min_sdf - sample_sdf + h * 0.5);
+        }
+    }
 
     let kernel_hl = i32(cfg.smooth_kernel_size_w);
     let kernel_hr = i32(cfg.smooth_kernel_size_h);
@@ -120,7 +137,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 
             // Only raymarch when both points are clearly outside an occluder.
             let do_occlusion = sample_outside * probe_outside;
-            if march_from_here && do_occlusion > 0.5 && raymarch_primary(sample_world_pose, p_world_pose,
+            if do_occlusion > 0.5 && raymarch_primary(march_origin, p_world_pose,
                 8,
                 sdf_in,
                 sdf_in_sampler,

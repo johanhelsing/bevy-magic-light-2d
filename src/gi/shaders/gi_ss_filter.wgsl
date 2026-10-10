@@ -29,6 +29,22 @@ fn gauss_range(irradiance_diff: f32) -> f32 {
 }
 
 
+// The blended probe field at a screen position, interpolated between the
+// four probes whose cell centres surround it.
+fn blend_bilinear(screen_pose: vec2<i32>) -> vec3<f32> {
+    let p = (vec2<f32>(screen_pose) + 0.5) / f32(cfg.probe_size) - 0.5;
+    let p0 = vec2<i32>(floor(p));
+    let f = p - vec2<f32>(p0);
+    let dims = vec2<i32>(textureDimensions(ss_blend_in)) - vec2<i32>(1);
+    let a = clamp(p0, vec2<i32>(0), dims);
+    let b = clamp(p0 + vec2<i32>(1, 0), vec2<i32>(0), dims);
+    let c = clamp(p0 + vec2<i32>(0, 1), vec2<i32>(0), dims);
+    let d = clamp(p0 + vec2<i32>(1, 1), vec2<i32>(0), dims);
+    let top = mix(textureLoad(ss_blend_in, a).xyz, textureLoad(ss_blend_in, b).xyz, f.x);
+    let bot = mix(textureLoad(ss_blend_in, c).xyz, textureLoad(ss_blend_in, d).xyz, f.x);
+    return mix(top, bot, f.y);
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let screen_pose        = vec2<i32>(invocation_id.xy);
@@ -40,25 +56,27 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     );
 
     let base_probe_grid_pose   = screen_pose / cfg.probe_size;
-    // Reference irradiance: the blended probe that contains this pixel.
-    // ss_blend_in is probe-grid-sized, so index with grid coords (not screen coords).
-    let base_probe_sample      = textureLoad(ss_blend_in, base_probe_grid_pose).xyz;
 
-    // SDF classification uses the probe-cell centre, not the per-pixel position.
-    // All pixels in the same probe cell therefore share one stable classification,
-    // preventing individual pixels from oscillating across the inside/outside
-    // boundary as the occluder moves through sub-pixel distances.
-    let base_probe_center_screen = base_probe_grid_pose * cfg.probe_size + cfg.probe_size / 2;
-    let base_probe_center_world  = screen_to_world(
-        base_probe_center_screen,
-        camera_params.screen_size,
-        camera_params.inverse_view_proj,
-        camera_params.screen_size_inv,
-    );
+    // Reference irradiance for the range term: the blended probes around
+    // this pixel, bilinearly interpolated at the pixel's position. One probe
+    // per cell as the reference stepped the output at every cell edge
+    // wherever neighboring probes differ, which is every occluder boundary.
+    let base_probe_sample      = blend_bilinear(screen_pose);
+
+    // Inside/outside classification at the pixel itself. The SDF is the one
+    // smooth signal we have at pixel resolution; classifying at the cell
+    // centre instead quantized a wall's lit face (the strip between a piece
+    // and its shrunk occluder, a few pixels) to whole 4-pixel cells, so a
+    // face lit up or not by where it fell on the cell grid. The smoothstep
+    // keeps a moving occluder's edge from popping.
     let sample_sdf = bilinear_sample_r(sdf_in, sdf_in_sampler,
-        world_to_sdf_uv(base_probe_center_world, camera_params.view_proj, camera_params.inv_sdf_scale));
+        world_to_sdf_uv(sample_world_pose, camera_params.view_proj, camera_params.inv_sdf_scale));
     let eps = camera_params.pixel_world_size.x * f32(cfg.probe_size);
     let sample_outside = smoothstep(-eps, eps, sample_sdf);
+    // The march fails at once from a point closer to the boundary than its
+    // own minimum distance, so pixels on that rim take their probes
+    // unoccluded instead of losing them all to a false fail.
+    let march_from_here = sample_sdf > camera_params.pixel_world_size.x * 0.6;
 
     let kernel_hl = i32(cfg.smooth_kernel_size_w);
     let kernel_hr = i32(cfg.smooth_kernel_size_h);
@@ -101,11 +119,8 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
             if cross_w <= 0.0 { continue; }
 
             // Only raymarch when both points are clearly outside an occluder.
-            // Use probe-cell centres for both endpoints so the march is consistent
-            // with the SDF classification above — marching from a per-pixel position
-            // that happens to be slightly inside would cause an immediate false fail.
             let do_occlusion = sample_outside * probe_outside;
-            if do_occlusion > 0.5 && raymarch_primary(base_probe_center_world, p_world_pose,
+            if march_from_here && do_occlusion > 0.5 && raymarch_primary(sample_world_pose, p_world_pose,
                 8,
                 sdf_in,
                 sdf_in_sampler,

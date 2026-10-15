@@ -4,7 +4,10 @@ use bevy::prelude::*;
 #[rustfmt::skip]
 #[derive(Reflect, Component, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[require(VisibilityClass)]
+// Visibility brings the Inherited and View visibility the extraction reads,
+// and Transform the GlobalTransform: without them a light or an occluder is
+// skipped with no warning.
+#[require(VisibilityClass, Visibility, Transform)]
 #[component(on_add = visibility::add_visibility_class::<OmniLightSource2D>)]
 #[reflect(Component, Default)]
 #[cfg_attr(feature = "serde", reflect(Serialize, Deserialize))]
@@ -54,7 +57,10 @@ pub fn default_cone_half_angle() -> f32
 #[rustfmt::skip]
 #[derive(Reflect, Component, Default, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[require(VisibilityClass)]
+// Visibility brings the Inherited and View visibility the extraction reads,
+// and Transform the GlobalTransform: without them a light or an occluder is
+// skipped with no warning.
+#[require(VisibilityClass, Visibility, Transform)]
 #[component(on_add = visibility::add_visibility_class::<LightOccluder2D>)]
 #[reflect(Component)]
 #[cfg_attr(feature = "serde", reflect(Serialize, Deserialize))]

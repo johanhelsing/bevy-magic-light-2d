@@ -21,10 +21,11 @@ fn gauss_spatial(d_pixels: f32, probe_size: f32) -> f32 {
     return exp(-d_pixels * d_pixels / (2.0 * sigma * sigma));
 }
 
-// Range Gaussian: standard bilateral, sigma = 0.5 irradiance units.
-// Preserves shadow edges while smoothing within uniform-lit regions.
+// Range Gaussian: standard bilateral, sigma = 6.5 irradiance units (1.0 shows
+// a sprite as drawn). Preserves shadow edges while smoothing within
+// uniform-lit regions.
 fn gauss_range(irradiance_diff: f32) -> f32 {
-    let sigma = 0.5;
+    let sigma = 6.5;
     return exp(-irradiance_diff * irradiance_diff / (2.0 * sigma * sigma));
 }
 

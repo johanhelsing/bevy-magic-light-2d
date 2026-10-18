@@ -618,7 +618,7 @@ fn setup(
 
         let base = OmniLightSource2D {
             falloff: Vec3::new(50.0, 20.0, 0.05),
-            intensity: 10.0,
+            intensity: 129.0,
             ..default()
         };
         lights.push(spawn_light(
@@ -627,9 +627,9 @@ fn setup(
             -393.8,
             "outdoor_krypta_torch_1",
             OmniLightSource2D {
-                intensity: 4.5,
+                intensity: 58.1,
                 color: Color::srgb_u8(137, 79, 24),
-                jitter_intensity: 2.5,
+                jitter_intensity: 32.3,
                 jitter_translation: 8.0,
                 ..base
             },
@@ -640,9 +640,9 @@ fn setup(
             -393.8,
             "outdoor_krypta_torch_2",
             OmniLightSource2D {
-                intensity: 4.5,
+                intensity: 58.1,
                 color: Color::srgb_u8(137, 79, 24),
-                jitter_intensity: 2.5,
+                jitter_intensity: 32.3,
                 jitter_translation: 8.0,
                 ..base
             },
@@ -653,9 +653,9 @@ fn setup(
             -284.6,
             "indoor_krypta_light_1",
             OmniLightSource2D {
-                intensity: 10.0,
+                intensity: 129.0,
                 color: Color::srgb_u8(76, 57, 211),
-                jitter_intensity: 2.0,
+                jitter_intensity: 25.8,
                 jitter_translation: 0.0,
                 ..base
             },
@@ -666,9 +666,9 @@ fn setup(
             -292.7,
             "indoor_krypta_light_2",
             OmniLightSource2D {
-                intensity: 10.0,
+                intensity: 129.0,
                 color: Color::srgb_u8(76, 57, 211),
-                jitter_intensity: 2.0,
+                jitter_intensity: 25.8,
                 jitter_translation: 0.0,
                 ..base
             },
@@ -679,9 +679,9 @@ fn setup(
             -131.2,
             "outdoor_krypta_torch_3",
             OmniLightSource2D {
-                intensity: 4.5,
+                intensity: 58.1,
                 color: Color::srgb_u8(137, 79, 24),
-                jitter_intensity: 2.5,
+                jitter_intensity: 32.3,
                 jitter_translation: 3.0,
                 ..base
             },
@@ -692,9 +692,9 @@ fn setup(
             -141.8,
             "outdoor_krypta_torch_4",
             OmniLightSource2D {
-                intensity: 4.5,
+                intensity: 58.1,
                 color: Color::srgb_u8(137, 79, 24),
-                jitter_intensity: 2.5,
+                jitter_intensity: 32.3,
                 jitter_translation: 3.0,
                 ..base
             },
@@ -705,9 +705,9 @@ fn setup(
             -34.0,
             "indoor_krypta_ghost_1",
             OmniLightSource2D {
-                intensity: 0.8,
+                intensity: 10.3,
                 color: Color::srgb_u8(6, 53, 6),
-                jitter_intensity: 0.2,
+                jitter_intensity: 2.58,
                 jitter_translation: 0.0,
                 ..base
             },
@@ -718,9 +718,9 @@ fn setup(
             -168.3,
             "indoor_krypta_tomb_1",
             OmniLightSource2D {
-                intensity: 0.4,
+                intensity: 5.17,
                 color: Color::srgb_u8(252, 182, 182),
-                jitter_intensity: 0.05,
+                jitter_intensity: 0.646,
                 jitter_translation: 4.7,
                 ..base
             },
@@ -732,10 +732,10 @@ fn setup(
             -1163.2,
             "outdoor_light_9",
             OmniLightSource2D {
-                intensity:          1.2,
+                intensity:          15.5,
                 falloff:            Vec3::new(50.0, 40.0, 0.03),
                 color:              Color::srgb_u8(0, 206, 94),
-                jitter_intensity:   0.7,
+                jitter_intensity:   9.04,
                 jitter_translation: 3.0,
             },
         ));
@@ -746,10 +746,10 @@ fn setup(
             -1210.0,
             "outdoor_light_10",
             OmniLightSource2D {
-                intensity:          1.2,
+                intensity:          15.5,
                 falloff:            Vec3::new(50.0, 40.0, 0.03),
                 color:              Color::srgb_u8(0, 206, 94),
-                jitter_intensity:   0.7,
+                jitter_intensity:   9.04,
                 jitter_translation: 3.0,
             },
         ));
@@ -783,7 +783,7 @@ fn setup(
     commands.spawn((
         SkylightLight2D {
             color:     Color::srgb_u8(93, 158, 179),
-            intensity: 0.025,
+            intensity: 0.323,
         },
         Name::new("global_skylight"),
     ));
@@ -801,7 +801,7 @@ fn setup(
         ))
         .insert(Name::new("cursor_light"))
         .insert(OmniLightSource2D {
-            intensity: 10.0,
+            intensity: 129.0,
             color: Color::srgb_u8(254, 100, 34),
             falloff: Vec3::new(50.0, 20.0, 0.05),
             ..default()

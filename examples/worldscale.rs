@@ -95,7 +95,7 @@ fn setup(mut commands: Commands, camera_targets: Res<CameraTargets>)
             -512. * S,
             "left",
             OmniLightSource2D {
-                intensity: 10.0,
+                intensity: 129.0,
                 color: Color::srgb_u8(255, 255, 0),
                 falloff: Vec3::new(1.5, 10.0, 0.01 / (S * S)),
                 ..default()
@@ -107,7 +107,7 @@ fn setup(mut commands: Commands, camera_targets: Res<CameraTargets>)
             -512. * S,
             "right",
             OmniLightSource2D {
-                intensity: 10.0,
+                intensity: 129.0,
                 color: Color::srgb_u8(0, 255, 255),
                 falloff: Vec3::new(1.5, 10.0, 0.01 / (S * S)),
                 ..default()

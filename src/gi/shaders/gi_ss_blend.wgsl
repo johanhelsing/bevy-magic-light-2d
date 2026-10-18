@@ -198,7 +198,9 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     total_irradiance = total_irradiance / total_weight;
     total_irradiance = clamp(total_irradiance, min_irradiance, max_irradiance);
 
-    var l = vec3<f32>(0.001 + dot(total_irradiance, vec3<f32>(1.0/3.0)));
+    // Lift dim areas by up to 15 %, fading out as the irradiance reaches 13
+    // (1.0 shows a sprite as drawn).
+    var l = vec3<f32>(0.001 + dot(total_irradiance, vec3<f32>(1.0/3.0)) / 13.0);
         l = clamp(vec3<f32>(1.0) - l, vec3<f32>(0.0), vec3<f32>(1.0)) * .15;
 
     // total_irradiance = log(vec3<f32>(1.0) + total_irradiance + total_irradiance * l);

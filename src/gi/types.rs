@@ -12,6 +12,8 @@ use bevy::prelude::*;
 #[reflect(Component, Default)]
 #[cfg_attr(feature = "serde", reflect(Serialize, Deserialize))]
 pub struct OmniLightSource2D {
+    /// Linear light at the source: 1.0 shows a sprite as drawn, 2.0 twice as
+    /// bright. Past 1.0 a white sprite clips to white.
     pub intensity:          f32,
     pub color:              Color,
     pub falloff:            Vec3,
@@ -123,5 +125,7 @@ pub struct SkylightMask2D {
 #[cfg_attr(feature = "serde", reflect(Serialize, Deserialize))]
 pub struct SkylightLight2D {
     pub color:     Color,
+    /// Linear light everywhere the sky reaches, in the unit of
+    /// [`OmniLightSource2D::intensity`].
     pub intensity: f32,
 }

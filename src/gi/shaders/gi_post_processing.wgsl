@@ -14,16 +14,6 @@ fn coords_to_viewport_uv(position: vec2<f32>, viewport: vec4<f32>) -> vec2<f32> 
 @group(#{MATERIAL_BIND_GROUP}) @binding(6) var in_irradiance_texture:         texture_2d<f32>;
 @group(#{MATERIAL_BIND_GROUP}) @binding(7) var in_irradiance_texture_sampler: sampler;
 
-fn lin_to_srgb(color: vec3<f32>) -> vec3<f32> {
-   let x = color * 12.92;
-   let y = 1.055 * pow(clamp(color, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(0.4166667)) - vec3<f32>(0.055);
-   var clr = color;
-   clr.x = select(x.x, y.x, (color.x < 0.0031308));
-   clr.y = select(x.y, y.y, (color.y < 0.0031308));
-   clr.z = select(x.z, y.z, (color.z < 0.0031308));
-   return clr;
-}
-
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let position = in.position;
@@ -64,12 +54,11 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
-    let floor_irradiance_srgb   = lin_to_srgb(in_irradiance);
-    let objects_irradiance_srgb = lin_to_srgb(object_irradiance);
-
-    let final_floor   = in_floor_diffuse.xyz   * floor_irradiance_srgb;
-    let final_walls   = in_walls_diffuse.xyz   * floor_irradiance_srgb;
-    let final_objects = in_objects_diffuse.xyz * objects_irradiance_srgb;
+    // Irradiance is linear light, 1.0 shows a sprite as drawn. Nothing is
+    // encoded here: the camera is HDR and Bevy writes sRGB at the end.
+    let final_floor   = in_floor_diffuse.xyz   * in_irradiance;
+    let final_walls   = in_walls_diffuse.xyz   * in_irradiance;
+    let final_objects = in_objects_diffuse.xyz * object_irradiance;
 
     // Composite layers. Alpha tracks whether any geometry is present,
     // so areas with no content are transparent (stars show through).

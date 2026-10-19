@@ -1,8 +1,8 @@
 use bevy::asset::embedded_asset;
 use bevy::prelude::*;
+use bevy::render::diagnostic::RecordDiagnostics;
 use bevy::render::extract_resource::ExtractResourcePlugin;
 use bevy::render::render_resource::*;
-use bevy::render::diagnostic::RecordDiagnostics;
 use bevy::render::renderer::{RenderContext, RenderGraph, RenderGraphSystems};
 use bevy::render::{Render, RenderApp, RenderSystems};
 use bevy::shader::load_shader_library;
@@ -30,6 +30,7 @@ use crate::gi::resource::ComputedTargetSizes;
 use crate::prelude::BevyMagicLight2DSettings;
 
 mod constants;
+mod occluder_merge;
 mod pipeline;
 mod pipeline_assets;
 mod types_gpu;

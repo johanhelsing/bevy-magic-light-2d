@@ -8,7 +8,8 @@ use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::Extract;
 use rand::Rng;
 
-use crate::gi::constants::GI_SCREEN_PROBE_SIZE;
+use crate::gi::constants::{GI_SCREEN_PROBE_SIZE, SDF_CULL_MARGIN, SDF_VIEW_SCALE};
+use crate::gi::occluder_merge::{merge_rows, OccluderBox};
 use crate::gi::resource::ComputedTargetSizes;
 use crate::gi::types::{LightOccluder2D, OmniLightSource2D, SkylightLight2D, SkylightMask2D};
 use crate::gi::types_gpu::{
@@ -132,20 +133,44 @@ pub fn system_extract_pipeline_assets(
         }
     }
 
+    // The SDF pass measures every texel against every occluder it is given,
+    // so it gets only those near the area the SDF covers. A farther one can
+    // only shorten march steps near the SDF's edge, never add or remove a hit
+    // (a march stops where it leaves the SDF); the margin keeps even that off.
+    // Then each row of touching tiles goes as one box (`occluder_merge`).
+    let sdf_area = query_camera.single().ok().map(|(camera, transform)| {
+        let view: Mat4 = transform.affine().into();
+        let world_from_ndc = view * camera.clip_from_view().inverse();
+        let corners = [Vec2::new(-1.0, -1.0), Vec2::new(1.0, -1.0), Vec2::new(-1.0, 1.0), Vec2::new(1.0, 1.0)]
+            .map(|c| (world_from_ndc * (c * SDF_VIEW_SCALE).extend(0.0).extend(1.0)).xy());
+        let area = Rect::from_corners(corners[0], corners[3]).union(Rect::from_corners(corners[1], corners[2]));
+        area.inflate(area.half_size().max_element() * SDF_CULL_MARGIN)
+    });
+
     {
+        let near: Vec<OccluderBox> = query_occluders
+            .iter()
+            .filter(|(occluder, global_transform, hviz, vviz)| {
+                let center = global_transform.translation().xy();
+                let reach = occluder.h_size.length();
+                hviz.get()
+                    && vviz.get()
+                    && sdf_area.is_none_or(|area| (center - center.clamp(area.min, area.max)).length() <= reach)
+            })
+            .map(|(occluder, global_transform, _, _)| OccluderBox {
+                center:   global_transform.translation().xy(),
+                rotation: global_transform.rotation(),
+                h_extent: occluder.h_size,
+            })
+            .collect();
         let light_occluders = gpu_pipeline_assets.light_occluders.get_mut();
-        light_occluders.count = 0;
         light_occluders.data.clear();
-        for (occluder, global_transform, hviz, vviz) in query_occluders.iter() {
-            if hviz.get() && vviz.get() {
-                light_occluders.count += 1;
-                light_occluders.data.push(GpuLightOccluder2D {
-                    center: global_transform.translation().xy(),
-                    rotation: global_transform.rotation().inverse().into(),
-                    h_extent: occluder.h_size,
-                });
-            }
-        }
+        light_occluders.data.extend(merge_rows(&near).into_iter().map(|b| GpuLightOccluder2D {
+            center:   b.center,
+            rotation: b.rotation.inverse().into(),
+            h_extent: b.h_extent,
+        }));
+        light_occluders.count = light_occluders.data.len() as u32;
     }
 
     {
@@ -180,9 +205,8 @@ pub fn system_extract_pipeline_assets(
                 1.0 / gpu_target_sizes.primary_target_size.y,
             );
 
-            let scale = 2.0;
-            camera_params.sdf_scale     = Vec2::splat(scale);
-            camera_params.inv_sdf_scale = Vec2::splat(1. / scale);
+            camera_params.sdf_scale     = Vec2::splat(SDF_VIEW_SCALE);
+            camera_params.inv_sdf_scale = Vec2::splat(1. / SDF_VIEW_SCALE);
 
             // Compute world units per pixel from the camera's projection.
             // inverse_view_proj maps NDC to world. NDC spans [-1,1] = 2 units.

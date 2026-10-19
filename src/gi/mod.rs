@@ -2,6 +2,7 @@ use bevy::asset::embedded_asset;
 use bevy::prelude::*;
 use bevy::render::extract_resource::ExtractResourcePlugin;
 use bevy::render::render_resource::*;
+use bevy::render::diagnostic::RecordDiagnostics;
 use bevy::render::renderer::{RenderContext, RenderGraph, RenderGraphSystems};
 use bevy::render::{Render, RenderApp, RenderSystems};
 use bevy::shader::load_shader_library;
@@ -194,53 +195,31 @@ fn light_pass_2d(world: &World, mut render_context: RenderContext) {
                 pipeline_cache.get_compute_pipeline(pipeline.ss_blend_pipeline),
                 pipeline_cache.get_compute_pipeline(pipeline.ss_filter_pipeline),
             ) {
-                let sdf_w = target_sizes.sdf_target_usize.x;
-                let sdf_h = target_sizes.sdf_target_usize.y;
+                let sdf_grid = target_sizes.sdf_target_usize / WORKGROUP_SIZE;
+                let probe_grid = target_sizes.probe_grid_usize / WORKGROUP_SIZE;
+                let filter_grid = util::align_to_work_group_grid(target_sizes.primary_target_isize).as_uvec2() / WORKGROUP_SIZE;
 
-                let mut pass =
-                    render_context
+                // One compute pass each, so a GPU timestamp (`RenderDiagnosticsPlugin`,
+                // `render/gi_*/elapsed_gpu`) reads what each stage costs.
+                let stages = [
+                    ("gi_sdf", sdf_pipeline, &pipeline_bind_groups.sdf_bind_group, sdf_grid),
+                    ("gi_ss_probe", ss_probe_pipeline, &pipeline_bind_groups.ss_probe_bind_group, probe_grid),
+                    ("gi_ss_bounce", ss_bounce_pipeline, &pipeline_bind_groups.ss_bounce_bind_group, probe_grid),
+                    ("gi_ss_blend", ss_blend_pipeline, &pipeline_bind_groups.ss_blend_bind_group, probe_grid),
+                    ("gi_ss_filter", ss_filter_pipeline, &pipeline_bind_groups.ss_filter_bind_group, filter_grid),
+                ];
+
+                let diagnostics = render_context.diagnostic_recorder();
+                let diagnostics = diagnostics.as_deref();
+                for (label, compute_pipeline, bind_group, grid) in stages {
+                    let mut pass = render_context
                         .command_encoder()
-                        .begin_compute_pass(&ComputePassDescriptor { label: Some("light_pass_2d"), ..default() });
-
-                {
-                    let grid_w = sdf_w / WORKGROUP_SIZE;
-                    let grid_h = sdf_h / WORKGROUP_SIZE;
-                    pass.set_bind_group(0, &pipeline_bind_groups.sdf_bind_group, &[]);
-                    pass.set_pipeline(sdf_pipeline);
-                    pass.dispatch_workgroups(grid_w, grid_h, 1);
-                }
-
-                {
-                    let grid_w = target_sizes.probe_grid_usize.x / WORKGROUP_SIZE;
-                    let grid_h = target_sizes.probe_grid_usize.y / WORKGROUP_SIZE;
-                    pass.set_bind_group(0, &pipeline_bind_groups.ss_probe_bind_group, &[]);
-                    pass.set_pipeline(ss_probe_pipeline);
-                    pass.dispatch_workgroups(grid_w, grid_h, 1);
-                }
-
-                {
-                    let grid_w = target_sizes.probe_grid_usize.x / WORKGROUP_SIZE;
-                    let grid_h = target_sizes.probe_grid_usize.y / WORKGROUP_SIZE;
-                    pass.set_bind_group(0, &pipeline_bind_groups.ss_bounce_bind_group, &[]);
-                    pass.set_pipeline(ss_bounce_pipeline);
-                    pass.dispatch_workgroups(grid_w, grid_h, 1);
-                }
-
-                {
-                    let grid_w = target_sizes.probe_grid_usize.x / WORKGROUP_SIZE;
-                    let grid_h = target_sizes.probe_grid_usize.y / WORKGROUP_SIZE;
-                    pass.set_bind_group(0, &pipeline_bind_groups.ss_blend_bind_group, &[]);
-                    pass.set_pipeline(ss_blend_pipeline);
-                    pass.dispatch_workgroups(grid_w, grid_h, 1);
-                }
-
-                {
-                    let aligned = util::align_to_work_group_grid(target_sizes.primary_target_isize).as_uvec2();
-                    let grid_w = aligned.x / WORKGROUP_SIZE;
-                    let grid_h = aligned.y / WORKGROUP_SIZE;
-                    pass.set_bind_group(0, &pipeline_bind_groups.ss_filter_bind_group, &[]);
-                    pass.set_pipeline(ss_filter_pipeline);
-                    pass.dispatch_workgroups(grid_w, grid_h, 1);
+                        .begin_compute_pass(&ComputePassDescriptor { label: Some(label), ..default() });
+                    let span = diagnostics.pass_span(&mut pass, label);
+                    pass.set_bind_group(0, bind_group, &[]);
+                    pass.set_pipeline(compute_pipeline);
+                    pass.dispatch_workgroups(grid.x, grid.y, 1);
+                    span.end(&mut pass);
                 }
             }
         } else {

@@ -250,10 +250,11 @@ pub fn system_extract_pipeline_assets(
         let light_pass_params = gpu_pipeline_assets.light_pass_params.get_mut();
         light_pass_params.skylight_color = Vec3::splat(0.0);
         for new_gi_state in query_skylight_light.iter() {
-            let srgba = new_gi_state.color.to_srgba();
-            light_pass_params.skylight_color.x += srgba.red * new_gi_state.intensity;
-            light_pass_params.skylight_color.y += srgba.green * new_gi_state.intensity;
-            light_pass_params.skylight_color.z += srgba.blue * new_gi_state.intensity;
+            // Linear, as the light math is.
+            let linear = new_gi_state.color.to_linear();
+            light_pass_params.skylight_color.x += linear.red * new_gi_state.intensity;
+            light_pass_params.skylight_color.y += linear.green * new_gi_state.intensity;
+            light_pass_params.skylight_color.z += linear.blue * new_gi_state.intensity;
         }
     }
 

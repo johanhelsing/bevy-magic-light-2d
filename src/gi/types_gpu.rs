@@ -27,7 +27,8 @@ impl GpuOmniLightSource
 {
     pub fn new(light: OmniLightSource2D, center: Vec2) -> Self
     {
-        let color: Srgba = light.color.into();
+        // The light math is linear, so the color goes in as linear light.
+        let color = light.color.to_linear();
         let cone_dir = light.cone_direction.try_normalize().unwrap_or(Vec2::X);
         let half_angle = light.cone_half_angle.clamp(0.0, core::f32::consts::PI);
         let inner = (half_angle - light.cone_softness.max(0.0)).max(0.0);

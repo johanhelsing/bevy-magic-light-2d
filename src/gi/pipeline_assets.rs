@@ -62,6 +62,8 @@ pub struct LightPassPipelineAssets {
     pub light_occluders:   StorageBuffer<GpuLightOccluderBuffer>,
     pub probes:            StorageBuffer<GpuProbeDataBuffer>,
     pub skylight_masks:    StorageBuffer<GpuSkylightMaskBuffer>,
+    /// `LightPassParams::separable_smoothing`, read when dispatching.
+    pub separable_smoothing: bool,
 }
 
 impl LightPassPipelineAssets
@@ -200,6 +202,8 @@ pub fn system_extract_pipeline_assets(
             probes.data[*gpu_frame_counter as usize].camera_pose = Vec2::ZERO;
         }
     }
+
+    gpu_pipeline_assets.separable_smoothing = light_pass_config.separable_smoothing;
 
     {
         let light_pass_params = gpu_pipeline_assets.light_pass_params.get_mut();

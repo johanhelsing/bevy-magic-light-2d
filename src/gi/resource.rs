@@ -43,6 +43,12 @@ pub struct LightPassParams {
     /// irradiance values.
     pub smooth_kernel_size: (u32, u32),
 
+    /// Smooth in two passes, along the rows of probes and then down the
+    /// columns, instead of over the whole kernel at once: the kernel's width
+    /// plus its height in taps per pixel instead of their product. Light
+    /// reaches a pixel around at most one corner between the two.
+    pub separable_smoothing: bool,
+
     /// How much of the final light contribution should be direct light.
     #[cfg_attr(feature = "egui", inspector(min = 0.0, max = 1.0))]
     pub direct_light_contrib: f32,
@@ -67,6 +73,7 @@ impl Default for LightPassParams
         Self {
             reservoir_size:              8,
             smooth_kernel_size:          (3, 3),
+            separable_smoothing:         false,
             direct_light_contrib:        0.5,
             indirect_light_contrib:      0.5,
             indirect_rays_per_sample:    32,

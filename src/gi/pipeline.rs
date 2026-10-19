@@ -30,6 +30,8 @@ const SS_PROBE_PIPELINE_ENTRY: &str = "main";
 const SS_BOUNCE_PIPELINE_ENTRY: &str = "main";
 const SS_BLEND_PIPELINE_ENTRY: &str = "main";
 const SS_FILTER_PIPELINE_ENTRY: &str = "main";
+const SS_FILTER_H_PIPELINE_ENTRY: &str = "main_h";
+const SS_FILTER_V_PIPELINE_ENTRY: &str = "main_v";
 
 #[allow(dead_code)]
 #[derive(Clone, Resource, ExtractResource, Default)]
@@ -46,6 +48,8 @@ pub struct GiTargets
     pub ss_bounce_target: Handle<Image>,
     pub ss_blend_target:  Handle<Image>,
     pub ss_filter_target: Handle<Image>,
+    /// The separable filter's first half.
+    pub ss_filter_h_target: Handle<Image>,
     pub ss_pose_target:   Handle<Image>,
 }
 
@@ -78,6 +82,11 @@ impl GiTargets
             SS_FILTER_TARGET_FORMAT,
             ImageFilterMode::Nearest,
         );
+        let ss_filter_h_tex = create_texture_2d(
+            sizes.primary_target_usize.into(),
+            SS_FILTER_TARGET_FORMAT,
+            ImageFilterMode::Nearest,
+        );
         let ss_pose_tex = create_texture_2d(
             sizes.primary_target_usize.into(),
             SS_POSE_TARGET_FORMAT,
@@ -89,6 +98,7 @@ impl GiTargets
         let ss_bounce_target = uuid_handle!("00000000-0000-0000-2c62-8c87580fa5a7");
         let ss_blend_target = uuid_handle!("00000000-0000-0000-6c00-54342dfbf209");
         let ss_filter_target = uuid_handle!("00000000-0000-0000-7996-26a4fdeb17e4");
+        let ss_filter_h_target = uuid_handle!("00000000-0000-0000-5b1e-0c3f8a6d24e1");
         let ss_pose_target = uuid_handle!("00000000-0000-0000-419d-d117fc4b32d6");
 
         images
@@ -107,6 +117,9 @@ impl GiTargets
             .insert(ss_filter_target.id(), ss_filter_tex)
             .expect("failed to insert image");
         images
+            .insert(ss_filter_h_target.id(), ss_filter_h_tex)
+            .expect("failed to insert image");
+        images
             .insert(ss_pose_target.id(), ss_pose_tex)
             .expect("failed to insert image");
 
@@ -116,6 +129,7 @@ impl GiTargets
             ss_bounce_target,
             ss_blend_target,
             ss_filter_target,
+            ss_filter_h_target,
             ss_pose_target,
         }
     }
@@ -130,6 +144,8 @@ pub struct LightPassPipelineBindGroups
     pub ss_probe_bind_group:  BindGroup,
     pub ss_bounce_bind_group: BindGroup,
     pub ss_filter_bind_group: BindGroup,
+    pub ss_filter_h_bind_group: BindGroup,
+    pub ss_filter_v_bind_group: BindGroup,
 }
 
 #[rustfmt::skip]
@@ -188,6 +204,8 @@ pub struct LightPassPipeline
     pub ss_blend_pipeline:           CachedComputePipelineId,
     pub ss_filter_bind_group_layout: BindGroupLayoutDescriptor,
     pub ss_filter_pipeline:          CachedComputePipelineId,
+    pub ss_filter_h_pipeline:        CachedComputePipelineId,
+    pub ss_filter_v_pipeline:        CachedComputePipelineId,
 }
 
 pub fn system_queue_bind_groups(
@@ -246,6 +264,7 @@ pub fn system_queue_bind_groups(
             Some(ss_bounce_image),
             Some(ss_blend_image),
             Some(ss_filter_image),
+            Some(ss_filter_h_image),
             Some(ss_pose_image),
         ) = (
             gpu_images.get(&targets.sdf_target),
@@ -253,6 +272,7 @@ pub fn system_queue_bind_groups(
             gpu_images.get(&targets.ss_bounce_target),
             gpu_images.get(&targets.ss_blend_target),
             gpu_images.get(&targets.ss_filter_target),
+            gpu_images.get(&targets.ss_filter_h_target),
             gpu_images.get(&targets.ss_pose_target),
         )
         else {
@@ -395,44 +415,54 @@ pub fn system_queue_bind_groups(
             ],
         );
 
-        let ss_filter_bind_group = render_device.create_bind_group(
-            "ss_filter_bind_group",
-            &ss_filter_layout,
-            &[
-                BindGroupEntry {
-                    binding:  0,
-                    resource: camera_params.clone(),
-                },
-                BindGroupEntry {
-                    binding:  1,
-                    resource: gi_state.clone(),
-                },
-                BindGroupEntry {
-                    binding:  2,
-                    resource: probes.clone(),
-                },
-                BindGroupEntry {
-                    binding:  3,
-                    resource: BindingResource::TextureView(&sdf_view_image.texture_view),
-                },
-                BindGroupEntry {
-                    binding:  4,
-                    resource: BindingResource::Sampler(&sdf_view_image.sampler),
-                },
-                BindGroupEntry {
-                    binding:  5,
-                    resource: BindingResource::TextureView(&ss_blend_image.texture_view),
-                },
-                BindGroupEntry {
-                    binding:  6,
-                    resource: BindingResource::TextureView(&ss_filter_image.texture_view),
-                },
-                BindGroupEntry {
-                    binding:  7,
-                    resource: BindingResource::TextureView(&ss_pose_image.texture_view),
-                },
-            ],
-        );
+        // The filter reads `input` and writes `output`: the probe grid into
+        // the screen for the 2D kernel, and through the intermediate target
+        // for the separable one.
+        let filter_bind_group = |label: &'static str, input: &GpuImage, output: &GpuImage| {
+            render_device.create_bind_group(
+                label,
+                &ss_filter_layout,
+                &[
+                    BindGroupEntry {
+                        binding:  0,
+                        resource: camera_params.clone(),
+                    },
+                    BindGroupEntry {
+                        binding:  1,
+                        resource: gi_state.clone(),
+                    },
+                    BindGroupEntry {
+                        binding:  2,
+                        resource: probes.clone(),
+                    },
+                    BindGroupEntry {
+                        binding:  3,
+                        resource: BindingResource::TextureView(&sdf_view_image.texture_view),
+                    },
+                    BindGroupEntry {
+                        binding:  4,
+                        resource: BindingResource::Sampler(&sdf_view_image.sampler),
+                    },
+                    BindGroupEntry {
+                        binding:  5,
+                        resource: BindingResource::TextureView(&input.texture_view),
+                    },
+                    BindGroupEntry {
+                        binding:  6,
+                        resource: BindingResource::TextureView(&output.texture_view),
+                    },
+                    BindGroupEntry {
+                        binding:  7,
+                        resource: BindingResource::TextureView(&ss_pose_image.texture_view),
+                    },
+                ],
+            )
+        };
+        let ss_filter_bind_group = filter_bind_group("ss_filter_bind_group", ss_blend_image, ss_filter_image);
+        let ss_filter_h_bind_group =
+            filter_bind_group("ss_filter_h_bind_group", ss_blend_image, ss_filter_h_image);
+        let ss_filter_v_bind_group =
+            filter_bind_group("ss_filter_v_bind_group", ss_filter_h_image, ss_filter_image);
 
         commands.insert_resource(LightPassPipelineBindGroups {
             sdf_bind_group,
@@ -440,6 +470,8 @@ pub fn system_queue_bind_groups(
             ss_bounce_bind_group,
             ss_blend_bind_group,
             ss_filter_bind_group,
+            ss_filter_h_bind_group,
+            ss_filter_v_bind_group,
         });
     }
 }
@@ -867,6 +899,26 @@ impl FromWorld for LightPassPipeline
             zero_initialize_workgroup_memory: false,
         });
 
+        let ss_filter_h_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
+            label:                            Some("gi_filter_h_pipeline".into()),
+            layout:                           vec![ss_filter_bind_group_layout.clone()],
+            shader:                           gi_ss_filter.clone(),
+            shader_defs:                      vec![],
+            entry_point:                      Some(SS_FILTER_H_PIPELINE_ENTRY.into()),
+            immediate_size:                   0,
+            zero_initialize_workgroup_memory: false,
+        });
+
+        let ss_filter_v_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
+            label:                            Some("gi_filter_v_pipeline".into()),
+            layout:                           vec![ss_filter_bind_group_layout.clone()],
+            shader:                           gi_ss_filter.clone(),
+            shader_defs:                      vec![],
+            entry_point:                      Some(SS_FILTER_V_PIPELINE_ENTRY.into()),
+            immediate_size:                   0,
+            zero_initialize_workgroup_memory: false,
+        });
+
         let ss_filter_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label:                            Some("gi_filer_pipeline".into()),
             layout:                           vec![ss_filter_bind_group_layout.clone()],
@@ -893,6 +945,8 @@ impl FromWorld for LightPassPipeline
             //
             ss_filter_bind_group_layout,
             ss_filter_pipeline,
+            ss_filter_h_pipeline,
+            ss_filter_v_pipeline,
         }
     }
 }

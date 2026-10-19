@@ -188,12 +188,16 @@ fn light_pass_2d(world: &World, mut render_context: RenderContext) {
                 Some(ss_bounce_pipeline),
                 Some(ss_blend_pipeline),
                 Some(ss_filter_pipeline),
+                Some(ss_filter_h_pipeline),
+                Some(ss_filter_v_pipeline),
             ) = (
                 pipeline_cache.get_compute_pipeline(pipeline.sdf_pipeline),
                 pipeline_cache.get_compute_pipeline(pipeline.ss_probe_pipeline),
                 pipeline_cache.get_compute_pipeline(pipeline.ss_bounce_pipeline),
                 pipeline_cache.get_compute_pipeline(pipeline.ss_blend_pipeline),
                 pipeline_cache.get_compute_pipeline(pipeline.ss_filter_pipeline),
+                pipeline_cache.get_compute_pipeline(pipeline.ss_filter_h_pipeline),
+                pipeline_cache.get_compute_pipeline(pipeline.ss_filter_v_pipeline),
             ) {
                 let sdf_grid = target_sizes.sdf_target_usize / WORKGROUP_SIZE;
                 let probe_grid = target_sizes.probe_grid_usize / WORKGROUP_SIZE;
@@ -201,13 +205,22 @@ fn light_pass_2d(world: &World, mut render_context: RenderContext) {
 
                 // One compute pass each, so a GPU timestamp (`RenderDiagnosticsPlugin`,
                 // `render/gi_*/elapsed_gpu`) reads what each stage costs.
+                let filter_stages = if world.resource::<LightPassPipelineAssets>().separable_smoothing {
+                    vec![
+                        ("gi_ss_filter_h", ss_filter_h_pipeline, &pipeline_bind_groups.ss_filter_h_bind_group, filter_grid),
+                        ("gi_ss_filter_v", ss_filter_v_pipeline, &pipeline_bind_groups.ss_filter_v_bind_group, filter_grid),
+                    ]
+                } else {
+                    vec![("gi_ss_filter", ss_filter_pipeline, &pipeline_bind_groups.ss_filter_bind_group, filter_grid)]
+                };
                 let stages = [
                     ("gi_sdf", sdf_pipeline, &pipeline_bind_groups.sdf_bind_group, sdf_grid),
                     ("gi_ss_probe", ss_probe_pipeline, &pipeline_bind_groups.ss_probe_bind_group, probe_grid),
                     ("gi_ss_bounce", ss_bounce_pipeline, &pipeline_bind_groups.ss_bounce_bind_group, probe_grid),
                     ("gi_ss_blend", ss_blend_pipeline, &pipeline_bind_groups.ss_blend_bind_group, probe_grid),
-                    ("gi_ss_filter", ss_filter_pipeline, &pipeline_bind_groups.ss_filter_bind_group, filter_grid),
-                ];
+                ]
+                .into_iter()
+                .chain(filter_stages);
 
                 let diagnostics = render_context.diagnostic_recorder();
                 let diagnostics = diagnostics.as_deref();

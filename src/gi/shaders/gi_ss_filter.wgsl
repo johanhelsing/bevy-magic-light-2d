@@ -45,23 +45,38 @@ fn blend_bilinear(screen_pose: vec2<i32>) -> vec3<f32> {
     return mix(top, bot, f.y);
 }
 
-@compute @workgroup_size(8, 8, 1)
-fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
-    let screen_pose        = vec2<i32>(invocation_id.xy);
-    let sample_world_pose  = screen_to_world(
+// What the filter knows about the pixel it writes.
+struct Pixel {
+    world_pose:   vec2<f32>,
+    // 1 outside every occluder, 0 inside, smooth across the boundary.
+    outside:      f32,
+    // Where its line-of-sight marches start.
+    march_origin: vec2<f32>,
+}
+
+fn boundary_eps() -> f32 {
+    return camera_params.pixel_world_size.x * f32(cfg.probe_size);
+}
+
+// Inside/outside classification of a point, from the SDF.
+fn outside_at(world_pose: vec2<f32>) -> f32 {
+    let sdf = bilinear_sample_r(sdf_in, sdf_in_sampler,
+        world_to_sdf_uv(world_pose, camera_params.view_proj, camera_params.inv_sdf_scale));
+    let eps = boundary_eps();
+    return smoothstep(-eps, eps, sdf);
+}
+
+fn screen_pose_to_world(screen_pose: vec2<i32>) -> vec2<f32> {
+    return screen_to_world(
         screen_pose,
         camera_params.screen_size,
         camera_params.inverse_view_proj,
         camera_params.screen_size_inv,
     );
+}
 
-    let base_probe_grid_pose   = screen_pose / cfg.probe_size;
-
-    // Reference irradiance for the range term: the blended probes around
-    // this pixel, bilinearly interpolated at the pixel's position. One probe
-    // per cell as the reference stepped the output at every cell edge
-    // wherever neighboring probes differ, which is every occluder boundary.
-    let base_probe_sample      = blend_bilinear(screen_pose);
+fn pixel_at(screen_pose: vec2<i32>) -> Pixel {
+    let sample_world_pose = screen_pose_to_world(screen_pose);
 
     // Inside/outside classification at the pixel itself. The SDF is the one
     // smooth signal we have at pixel resolution; classifying at the cell
@@ -71,7 +86,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     // keeps a moving occluder's edge from popping.
     let sample_sdf = bilinear_sample_r(sdf_in, sdf_in_sampler,
         world_to_sdf_uv(sample_world_pose, camera_params.view_proj, camera_params.inv_sdf_scale));
-    let eps = camera_params.pixel_world_size.x * f32(cfg.probe_size);
+    let eps = boundary_eps();
     let sample_outside = smoothstep(-eps, eps, sample_sdf);
     // The march fails at once from a point nearer the boundary than its
     // own minimum distance, which every pixel on the lit face is. Such a
@@ -95,15 +110,54 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
         }
     }
 
-    let kernel_hl = i32(cfg.smooth_kernel_size_w);
-    let kernel_hr = i32(cfg.smooth_kernel_size_h);
+    return Pixel(sample_world_pose, sample_outside, march_origin);
+}
+
+// The bilateral weight of one tap for the pixel, 0 when the pixel cannot
+// see it. `d_pixels` is the screen distance the spatial term reads.
+fn tap_weight(
+    px:          Pixel,
+    reference:   vec3<f32>,
+    tap_world:   vec2<f32>,
+    tap_outside: f32,
+    tap_value:   vec3<f32>,
+    d_pixels:    f32,
+) -> f32 {
+    // Penalise cross-boundary pairs: falls to 0 when sample and tap are
+    // on opposite sides, stays near 1 when they are on the same side.
+    let cross_w = 1.0 - abs(px.outside - tap_outside);
+    if cross_w <= 0.0 { return 0.0; }
+
+    // Only raymarch when both points are clearly outside an occluder.
+    let do_occlusion = px.outside * tap_outside;
+    if do_occlusion > 0.5 && raymarch_primary(px.march_origin, tap_world,
+        8,
+        sdf_in,
+        sdf_in_sampler,
+        camera_params,
+        0.0).success <= 0 {
+        return 0.0;
+    }
+
+    let x = distance(tap_value, reference);
+    return gauss_spatial(d_pixels, f32(cfg.probe_size)) * gauss_range(x) * cross_w;
+}
+
+// The probes within `half` cells of the pixel's cell, weighted.
+fn gather_probes(screen_pose: vec2<i32>, px: Pixel, half: vec2<i32>) -> vec3<f32> {
+    let base_probe_grid_pose = screen_pose / cfg.probe_size;
+
+    // Reference irradiance for the range term: the blended probes around
+    // this pixel, bilinearly interpolated at the pixel's position. One probe
+    // per cell as the reference stepped the output at every cell edge
+    // wherever neighboring probes differ, which is every occluder boundary.
+    let base_probe_sample = blend_bilinear(screen_pose);
 
     var total_w = 0.0;
     var total_q = vec3<f32>(0.0);
-    var total_samples = 0;
 
-    for (var i = -kernel_hl; i <= kernel_hl; i++) {
-        for (var j = -kernel_hr; j <= kernel_hr; j++) {
+    for (var i = -half.x; i <= half.x; i++) {
+        for (var j = -half.y; j <= half.y; j++) {
 
             let offset = vec2<i32>(i, j);
 
@@ -117,53 +171,85 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
                 continue;
             }
 
-            let p_world_pose = screen_to_world(
-                p_screen_pose,
-                camera_params.screen_size,
-                camera_params.inverse_view_proj,
-                camera_params.screen_size_inv,
-            );
-
+            let p_world_pose = screen_pose_to_world(p_screen_pose);
             let p_sample = textureLoad(ss_blend_in, p_grid_pose).xyz;
-
-            let probe_sdf = bilinear_sample_r(sdf_in, sdf_in_sampler,
-                world_to_sdf_uv(p_world_pose, camera_params.view_proj, camera_params.inv_sdf_scale));
-            let probe_outside  = smoothstep(-eps, eps, probe_sdf);
-
-            // Penalise cross-boundary pairs: falls to 0 when sample and probe are
-            // on opposite sides, stays near 1 when they are on the same side.
-            let cross_w = 1.0 - abs(sample_outside - probe_outside);
-            if cross_w <= 0.0 { continue; }
-
-            // Only raymarch when both points are clearly outside an occluder.
-            let do_occlusion = sample_outside * probe_outside;
-            if do_occlusion > 0.5 && raymarch_primary(march_origin, p_world_pose,
-                8,
-                sdf_in,
-                sdf_in_sampler,
-                camera_params,
-                0.0).success <= 0 {
-                continue;
-            }
-
-            let d = distance(p_world_pose, sample_world_pose);
-            let x = distance(p_sample, base_probe_sample);
-            let pws = camera_params.pixel_world_size.x;
-            let probe_size_f = f32(cfg.probe_size);
-            let g = gauss_spatial(d / pws, probe_size_f) * gauss_range(x) * cross_w;
+            let d = distance(p_world_pose, px.world_pose) / camera_params.pixel_world_size.x;
+            let g = tap_weight(px, base_probe_sample, p_world_pose, outside_at(p_world_pose), p_sample, d);
 
             total_q += p_sample * g;
             total_w += g;
         }
     }
 
-    var irradiance = vec3<f32>(0.0);
-    if (total_w > 0.0) {
-        irradiance = total_q / total_w;
+    if total_w > 0.0 {
+        return total_q / total_w;
+    }
+    return vec3<f32>(0.0);
+}
+
+fn store_pose(screen_pose: vec2<i32>, px: Pixel) {
+    let sdf_uv = world_to_sdf_uv(px.world_pose, camera_params.view_proj, camera_params.inv_sdf_scale);
+    textureStore(ss_pose_out, screen_pose, vec4<f32>(sdf_uv, 0.0,  0.0));
+}
+
+// The full 2D kernel: every probe within `smooth_kernel_size` cells.
+@compute @workgroup_size(8, 8, 1)
+fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
+    let screen_pose = vec2<i32>(invocation_id.xy);
+    let px = pixel_at(screen_pose);
+    let half = vec2<i32>(i32(cfg.smooth_kernel_size_w), i32(cfg.smooth_kernel_size_h));
+    let irradiance = gather_probes(screen_pose, px, half);
+    textureStore(ss_filter_out, screen_pose, vec4<f32>(irradiance, 1.0));
+    store_pose(screen_pose, px);
+}
+
+// The separable kernel, first half: the probes in the pixel's own row of
+// cells, at full resolution into an intermediate target. The spatial term
+// is the full distance, so it carries a factor for the pixel's offset from
+// its row, common to every tap, which the normalization cancels.
+@compute @workgroup_size(8, 8, 1)
+fn main_h(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
+    let screen_pose = vec2<i32>(invocation_id.xy);
+    let px = pixel_at(screen_pose);
+    let half = vec2<i32>(i32(cfg.smooth_kernel_size_w), 0);
+    let irradiance = gather_probes(screen_pose, px, half);
+    textureStore(ss_filter_out, screen_pose, vec4<f32>(irradiance, 1.0));
+}
+
+// The separable kernel, second half: `ss_blend_in` holds the first half's
+// output. Taps the pixels one cell apart in the pixel's column, each the
+// smoothed row of cells it sits in, weighted by the pixel's distance to
+// that row. Light reaches the pixel around one corner: from a probe to
+// the tap along the row, then from the tap to the pixel.
+@compute @workgroup_size(8, 8, 1)
+fn main_v(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
+    let screen_pose = vec2<i32>(invocation_id.xy);
+    let px = pixel_at(screen_pose);
+    let half = i32(cfg.smooth_kernel_size_h);
+    let cell_y = screen_pose.y / cfg.probe_size;
+    let screen_h = i32(camera_params.screen_size.y);
+    let reference = textureLoad(ss_blend_in, screen_pose).xyz;
+
+    // The pixel's own row needs no march.
+    let d0 = f32(abs(cell_y * cfg.probe_size + cfg.probe_size / 2 - screen_pose.y));
+    var total_w = gauss_spatial(d0, f32(cfg.probe_size));
+    var total_q = reference * total_w;
+
+    for (var j = -half; j <= half; j++) {
+        if j == 0 { continue; }
+        let tap = screen_pose + vec2<i32>(0, j * cfg.probe_size);
+        if tap.y < 0 || tap.y >= screen_h { continue; }
+
+        let tap_world = screen_pose_to_world(tap);
+        let tap_value = textureLoad(ss_blend_in, tap).xyz;
+        let row_center = (cell_y + j) * cfg.probe_size + cfg.probe_size / 2;
+        let d = f32(abs(row_center - screen_pose.y));
+        let g = tap_weight(px, reference, tap_world, outside_at(tap_world), tap_value, d);
+
+        total_q += tap_value * g;
+        total_w += g;
     }
 
-    let sdf_uv = world_to_sdf_uv(sample_world_pose, camera_params.view_proj, camera_params.inv_sdf_scale);
-
-    textureStore(ss_filter_out, screen_pose, vec4<f32>(irradiance.xyz, 1.0));
-    textureStore(ss_pose_out, screen_pose, vec4<f32>(sdf_uv, 0.0,  0.0));
+    textureStore(ss_filter_out, screen_pose, vec4<f32>(total_q / total_w, 1.0));
+    store_pose(screen_pose, px);
 }

@@ -9,7 +9,7 @@ use bevy::render::Extract;
 use rand::Rng;
 
 use crate::gi::constants::{GI_SCREEN_PROBE_SIZE, SDF_CULL_MARGIN, SDF_VIEW_SCALE};
-use crate::gi::occluder_merge::{merge_rows, OccluderBox};
+use crate::gi::occluder_merge::{OccluderBox, RowMerger};
 use crate::gi::resource::ComputedTargetSizes;
 use crate::gi::types::{LightOccluder2D, OmniLightSource2D, SkylightLight2D, SkylightMask2D};
 use crate::gi::types_gpu::{
@@ -103,6 +103,7 @@ pub fn system_extract_pipeline_assets(
     mut gpu_target_sizes:       ResMut<ComputedTargetSizes>,
     mut gpu_pipeline_assets:    ResMut<LightPassPipelineAssets>,
     mut gpu_frame_counter:      Local<i32>,
+    mut occluder_rows:          Local<RowMerger>,
 ) {
     let light_pass_config = &res_light_settings.light_pass_params;
 
@@ -165,7 +166,12 @@ pub fn system_extract_pipeline_assets(
             .collect();
         let light_occluders = gpu_pipeline_assets.light_occluders.get_mut();
         light_occluders.data.clear();
-        light_occluders.data.extend(merge_rows(&near).into_iter().map(|b| GpuLightOccluder2D {
+        let boxes = if res_light_settings.merge_occluder_rows {
+            occluder_rows.merge(near).to_vec()
+        } else {
+            near
+        };
+        light_occluders.data.extend(boxes.into_iter().map(|b| GpuLightOccluder2D {
             center:   b.center,
             rotation: b.rotation.inverse().into(),
             h_extent: b.h_extent,

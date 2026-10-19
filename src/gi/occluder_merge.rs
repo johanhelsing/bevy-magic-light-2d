@@ -7,6 +7,9 @@
 //! changes: a row of tiles reads zero along every seam between two tiles, the
 //! merged box only at its own edge.
 
+use core::hash::BuildHasher;
+
+use bevy::platform::hash::FixedHasher;
 use bevy::prelude::*;
 
 /// One occluder as the SDF pass sees it: a box of half size `h_extent`,
@@ -24,7 +27,7 @@ pub(crate) struct OccluderBox
 const TOLERANCE: f32 = 1e-3;
 
 /// What boxes share to be in one row, quantized by [`TOLERANCE`].
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct RowKey
 {
     rotation: IVec4,
@@ -32,23 +35,24 @@ struct RowKey
     across:   i64,
 }
 
-impl RowKey
+/// The last frame's boxes and what they merged to, so a frame where no
+/// occluder moved, came or went reuses them instead of sorting again.
+#[derive(Default)]
+pub(crate) struct RowMerger
 {
-    /// FxHash's mix: a few cycles a box, against SipHash's dozens.
-    fn hash(&self) -> u64
+    input:  Vec<OccluderBox>,
+    output: Vec<OccluderBox>,
+}
+
+impl RowMerger
+{
+    pub(crate) fn merge(&mut self, boxes: Vec<OccluderBox>) -> &[OccluderBox]
     {
-        let parts = [
-            self.rotation.x as u64,
-            self.rotation.y as u64,
-            self.rotation.z as u64,
-            self.rotation.w as u64,
-            self.h_extent.x as u64,
-            self.h_extent.y as u64,
-            self.across as u64,
-        ];
-        parts.iter().fold(0u64, |h, &p| {
-            (h.rotate_left(5) ^ p).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95)
-        })
+        if boxes != self.input {
+            self.output = merge_rows(&boxes);
+            self.input = boxes;
+        }
+        &self.output
     }
 }
 
@@ -59,10 +63,10 @@ pub(crate) fn merge_rows(boxes: &[OccluderBox]) -> Vec<OccluderBox>
 {
     // A box's row is what it shares with the boxes it can merge with: its
     // rotation, its size and its offset across the row. Sorted, each row's
-    // boxes lie next to each other in order along it. This runs every frame,
-    // so the sort moves small entries (the row's hash, the place along it,
-    // the box's index) and the scan checks the row itself: two rows that hash
-    // alike only split a run, never join.
+    // boxes lie next to each other in order along it. It runs in any frame
+    // where an occluder moved, so the sort moves small entries (the row's
+    // hash, the place along it, the box's index) and the scan checks the row
+    // itself: two rows that hash alike only split a run, never join.
     let rows: Vec<RowKey> = boxes
         .iter()
         .map(|b| {
@@ -81,7 +85,7 @@ pub(crate) fn merge_rows(boxes: &[OccluderBox]) -> Vec<OccluderBox>
         .enumerate()
         .map(|(i, (b, row))| {
             (
-                row.hash(),
+                FixedHasher.hash_one(row),
                 b.center.dot((b.rotation * Vec3::X).xy()),
                 i as u32,
             )
@@ -189,5 +193,17 @@ mod tests
         let mut turned = tile(1.0, 0.0);
         turned.rotation = Quat::from_rotation_z(0.1);
         assert_eq!(merge_rows(&[tile(0.0, 0.0), big, turned]).len(), 3);
+    }
+
+    #[test]
+    fn the_merger_follows_a_change_and_keeps_the_rest()
+    {
+        let mut merger = RowMerger::default();
+        let row: Vec<_> = (0..3).map(|i| tile(i as f32 * 0.5, 0.0)).collect();
+        assert_eq!(merger.merge(row.clone()).len(), 1);
+        assert_eq!(merger.merge(row.clone()).len(), 1);
+        let mut broken = row;
+        broken[1].center.y += 1.0;
+        assert_eq!(merger.merge(broken).len(), 3);
     }
 }

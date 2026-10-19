@@ -22,12 +22,29 @@ impl Default for TargetScalingParams
     }
 }
 
-#[derive(Resource, Default, Copy, Clone, Reflect)]
+#[derive(Resource, Copy, Clone, Reflect)]
 #[reflect(Resource)]
 pub struct BevyMagicLight2DSettings
 {
     pub light_pass_params:     LightPassParams,
     pub target_scaling_params: TargetScalingParams,
+    /// Upload each row of equal occluders that touch end to end, a tilemap's
+    /// tiles for one, as a single box. The SDF pass costs texels times
+    /// occluders on the GPU; the merge costs a sort of the occluders on the
+    /// CPU, in frames where any of them changed.
+    pub merge_occluder_rows:   bool,
+}
+
+impl Default for BevyMagicLight2DSettings
+{
+    fn default() -> Self
+    {
+        Self {
+            light_pass_params:     default(),
+            target_scaling_params: default(),
+            merge_occluder_rows:   true,
+        }
+    }
 }
 
 #[rustfmt::skip]

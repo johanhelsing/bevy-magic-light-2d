@@ -1,9 +1,9 @@
 #import bevy_magic_light_2d::gi_types::{LightPassParams, ProbeDataBuffer, SkylightMaskBuffer, LightSourceBuffer}
 #import bevy_magic_light_2d::gi_math
-#import bevy_magic_light_2d::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, screen_to_world, world_to_ndc, ndc_to_screen, bilinear_sample_r, probe_jitter_offset_world}
+#import bevy_magic_light_2d::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, screen_to_world, world_to_ndc, ndc_to_screen, bilinear_sample_r, sdf_interior, probe_jitter_offset_world}
 #import bevy_magic_light_2d::gi_attenuation::light_attenuation_r_two
 #import bevy_magic_light_2d::gi_halton::hammersley2d
-#import bevy_magic_light_2d::gi_raymarch::{raymarch_bounce, raymarch_primary}
+#import bevy_magic_light_2d::gi_raymarch::{raymarch_bounce, raymarch_primary, lit_from, interior_fade}
 
 @group(0) @binding(0) var<uniform> camera_params:         CameraParams;
 @group(0) @binding(1) var<uniform> cfg:                   LightPassParams;
@@ -56,6 +56,15 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let skylight = cfg.skylight_color * is_masked;
     var probe_irradiance = vec3<f32>(skylight);
 
+    // A probe inside an occluder is lit as the nearest surface is, faded by
+    // its depth as the occluder says; one on the boundary band marches from
+    // outside it, so the face it is on is lit. The skylight it keeps either
+    // way, as before.
+    let probe_uv  = world_to_sdf_uv(probe_center_world, camera_params.view_proj, camera_params.inv_sdf_scale);
+    let probe_sdf = bilinear_sample_r(sdf_in, sdf_in_sampler, probe_uv);
+    let lit_at    = lit_from(probe_center_world, probe_sdf, sdf_in, sdf_in_sampler, camera_params);
+    let fade      = interior_fade(probe_sdf, sdf_interior(sdf_in, sdf_in_sampler, probe_uv));
+
     // Compute direct irradiance from lights in the current frame.
     // Probes inside occluders will have all marches fail naturally, so no
     // explicit SDF gate is needed — and avoiding the hard dist > 0 threshold
@@ -94,8 +103,11 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
             continue;
         }
 
+        if (fade <= 0.0) {
+            continue;
+        }
         let ray_result = raymarch_primary(
-            probe_center_world,
+            lit_at,
             light.center,
             32,
             sdf_in,
@@ -113,7 +125,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
         );
 
         if (ray_result.success > 0) {
-            probe_irradiance += light.color * att * light.intensity * cone;
+            probe_irradiance += light.color * att * light.intensity * cone * fade;
         }
     }
 

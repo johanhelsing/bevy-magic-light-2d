@@ -91,6 +91,19 @@ pub struct LightOccluder2D {
     #[reflect(default)]
     #[cfg_attr(feature = "serde", serde(default))]
     pub params: [f32; 8],
+    /// How far light reaches into the occluder from its surface, meters. A
+    /// probe inside is lit as the nearest surface is, faded by
+    /// `exp(-depth / lit_depth)` and never below `lit_floor`. At 0 the
+    /// interior gets the skylight alone, a cave: a wall's default.
+    #[reflect(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub lit_depth: f32,
+    /// The least share of the surface's light the interior gets, 0 to 1.
+    /// 1 lights the whole interior as its surface: a solid, whose shadow
+    /// falls only on what is behind it.
+    #[reflect(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub lit_floor: f32,
 }
 
 impl Default for OmniLightSource2D

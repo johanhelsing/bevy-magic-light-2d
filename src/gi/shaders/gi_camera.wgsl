@@ -97,6 +97,16 @@ fn bilinear_sample_r(t: texture_2d<f32>, s: sampler, uv: vec2<f32>) -> f32 {
     return bilinear_filter(texels, scaled_uv);
 }
 
+// How the nearest occluder lights its interior at `uv` of the distance
+// texture: x how far light reaches in, meters, y the floor (`LightOccluder2D`).
+fn sdf_interior(t: texture_2d<f32>, s: sampler, uv: vec2<f32>) -> vec2<f32> {
+    let dims = textureDimensions(t);
+    let scaled_uv = uv * vec2<f32>(dims);
+    let depth = bilinear_filter(textureGather(1, t, s, uv), scaled_uv);
+    let floor = bilinear_filter(textureGather(2, t, s, uv), scaled_uv);
+    return vec2<f32>(depth, floor);
+}
+
 fn bilinear_sample_rgba(t: texture_2d<f32>, s: sampler, uv: vec2<f32>) -> vec4<f32> {
     let dims = textureDimensions(t);
     let scaled_uv = uv * vec2<f32>(dims);

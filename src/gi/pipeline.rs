@@ -18,7 +18,7 @@ use crate::gi::types_gpu::{
     GpuSkylightMaskBuffer,
 };
 
-const SDF_TARGET_FORMAT: TextureFormat = TextureFormat::R16Float;
+const SDF_TARGET_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
 const SS_PROBE_TARGET_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
 const SS_BOUNCE_TARGET_FORMAT: TextureFormat = TextureFormat::Rgba32Float;
 const SS_BLEND_TARGET_FORMAT: TextureFormat = TextureFormat::Rgba32Float;
@@ -478,7 +478,7 @@ impl FromWorld for LightPassPipeline
                     binding:    2,
                     visibility: ShaderStages::COMPUTE,
                     ty:         BindingType::StorageTexture {
-                        access:         StorageTextureAccess::ReadWrite,
+                        access:         StorageTextureAccess::WriteOnly,
                         format:         SDF_TARGET_FORMAT,
                         view_dimension: TextureViewDimension::D2,
                     },

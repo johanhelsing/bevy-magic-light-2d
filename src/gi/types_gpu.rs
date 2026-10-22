@@ -65,6 +65,8 @@ pub struct GpuLightOccluder2D {
     pub kind: u32,
     pub params_a: Vec4,
     pub params_b: Vec4,
+    pub lit_depth: f32,
+    pub lit_floor: f32,
 }
 
 #[rustfmt::skip]
@@ -105,6 +107,7 @@ pub struct GpuLightPassParams {
     pub indirect_light_contrib:      f32,
     pub indirect_rays_per_sample:    i32,
     pub indirect_rays_radius_factor: f32,
+    pub boundary_cells:              f32,
 }
 
 impl Default for GpuLightPassParams
@@ -123,6 +126,7 @@ impl Default for GpuLightPassParams
             smooth_kernel_size_w:   3,
             direct_light_contrib:   0.2,
             indirect_light_contrib: 0.8,
+            boundary_cells:         1.0,
 
             indirect_rays_per_sample:    64,
             indirect_rays_radius_factor: 3.0,

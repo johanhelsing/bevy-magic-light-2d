@@ -82,6 +82,10 @@ pub struct LightPassParams {
 
     #[cfg_attr(feature = "egui", inspector(min = 1.0, max = 100.0))]
     pub indirect_rays_radius_factor: f32,
+    /// How wide the crossfade between a pixel inside an occluder and one
+    /// outside is, in probe cells, in the irradiance filter. 1 is one
+    /// cell either side of the boundary.
+    pub boundary_cells: f32,
 }
 
 impl Default for LightPassParams
@@ -95,6 +99,7 @@ impl Default for LightPassParams
             indirect_light_contrib:      0.5,
             indirect_rays_per_sample:    32,
             indirect_rays_radius_factor: 3.5,
+            boundary_cells:              1.0,
         }
     }
 }

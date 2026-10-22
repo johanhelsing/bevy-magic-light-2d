@@ -174,6 +174,8 @@ pub fn system_extract_pipeline_assets(
                     radius: occluder.radius,
                     kind,
                     params: occluder.params,
+                    lit_depth: occluder.lit_depth,
+                    lit_floor: occluder.lit_floor,
                 })
             })
             .collect();
@@ -192,6 +194,8 @@ pub fn system_extract_pipeline_assets(
             kind:     b.kind,
             params_a: Vec4::from_slice(&b.params[..4]),
             params_b: Vec4::from_slice(&b.params[4..]),
+            lit_depth: b.lit_depth,
+            lit_floor: b.lit_floor,
         }));
         light_occluders.count = light_occluders.data.len() as u32;
     }
@@ -261,6 +265,7 @@ pub fn system_extract_pipeline_assets(
         light_pass_params.indirect_light_contrib      = light_pass_config.indirect_light_contrib;
         light_pass_params.indirect_rays_radius_factor = light_pass_config.indirect_rays_radius_factor;
         light_pass_params.indirect_rays_per_sample    = light_pass_config.indirect_rays_per_sample;
+        light_pass_params.boundary_cells              = light_pass_config.boundary_cells;
     }
 
     {

@@ -5,7 +5,9 @@
 
 @group(0) @binding(0) var<uniform> camera_params:         CameraParams;
 @group(0) @binding(1) var<storage> light_occluder_buffer: LightOccluderBuffer;
-@group(0) @binding(2) var          sdf_out:               texture_storage_2d<r16float, read_write>;
+// x the distance; y and z how the nearest occluder lights its interior
+// (`lit_depth`, `lit_floor`).
+@group(0) @binding(2) var          sdf_out:               texture_storage_2d<rgba16float, write>;
 
 // A box of half size `h_extent` with its corners rounded by `radius`: a
 // box at 0, a circle or a capsule when the radius is half the narrow side.
@@ -49,9 +51,19 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
         camera_params.inverse_view_proj,
         camera_params.sdf_scale);
      var sdf_merged = 1e+10;
+     var nearest = -1;
      for (var i: i32 = 0; i < i32(light_occluder_buffer.count); i++) {
-        sdf_merged = min(sdf_merged, sdf_aabb_occluder(world_pose.xy, i));
+        let d = sdf_aabb_occluder(world_pose.xy, i);
+        if (d < sdf_merged) {
+            sdf_merged = d;
+            nearest = i;
+        }
+     }
+     var lit = vec2<f32>(0.0);
+     if (nearest >= 0) {
+        let occluder = light_occluder_buffer.data[nearest];
+        lit = vec2<f32>(occluder.lit_depth, occluder.lit_floor);
      }
 
-    textureStore(sdf_out, texel_pos, vec4<f32>(sdf_merged, 0.0, 0.0, 0.0));
+    textureStore(sdf_out, texel_pos, vec4<f32>(sdf_merged, lit.x, lit.y, 0.0));
 }

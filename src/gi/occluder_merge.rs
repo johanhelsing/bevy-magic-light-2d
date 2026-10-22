@@ -17,12 +17,14 @@ use bevy::prelude::*;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct OccluderBox
 {
-    pub center:   Vec2,
-    pub rotation: Quat,
-    pub h_extent: Vec2,
-    pub radius:   f32,
-    pub kind:     u32,
-    pub params:   [f32; 8],
+    pub center:    Vec2,
+    pub rotation:  Quat,
+    pub h_extent:  Vec2,
+    pub radius:    f32,
+    pub kind:      u32,
+    pub params:    [f32; 8],
+    pub lit_depth: f32,
+    pub lit_floor: f32,
 }
 
 /// How near two lengths count as equal, as a fraction of the box's size:
@@ -36,6 +38,7 @@ struct RowKey
     rotation: IVec4,
     h_extent: IVec2,
     across:   i64,
+    lit:      IVec2,
 }
 
 /// The last frame's boxes and what they merged to, so a frame where no
@@ -81,6 +84,9 @@ pub(crate) fn merge_rows(boxes: &[OccluderBox]) -> Vec<OccluderBox>
                 rotation: (Vec4::from(b.rotation) / TOLERANCE).round().as_ivec4(),
                 h_extent: (b.h_extent / unit).round().as_ivec2(),
                 across:   (b.center.dot(across.xy()) / unit).round() as i64,
+                lit:      (Vec2::new(b.lit_depth, b.lit_floor) / TOLERANCE)
+                    .round()
+                    .as_ivec2(),
             }
         })
         .collect();
@@ -120,12 +126,14 @@ pub(crate) fn merge_rows(boxes: &[OccluderBox]) -> Vec<OccluderBox>
         );
         let reach = (order[i - 1].1 - order[run_start].1) / 2.0;
         merged.push(OccluderBox {
-            center:   (first.center + last.center) / 2.0,
-            rotation: first.rotation,
-            h_extent: Vec2::new(first.h_extent.x + reach, first.h_extent.y),
-            radius:   first.radius,
-            kind:     first.kind,
-            params:   first.params,
+            center:    (first.center + last.center) / 2.0,
+            rotation:  first.rotation,
+            h_extent:  Vec2::new(first.h_extent.x + reach, first.h_extent.y),
+            radius:    first.radius,
+            kind:      first.kind,
+            params:    first.params,
+            lit_depth: first.lit_depth,
+            lit_floor: first.lit_floor,
         });
         run_start = i;
     }
@@ -140,12 +148,14 @@ mod tests
     fn tile(x: f32, y: f32) -> OccluderBox
     {
         OccluderBox {
-            center:   Vec2::new(x, y),
-            rotation: Quat::IDENTITY,
-            h_extent: Vec2::splat(0.25),
-            radius:   0.0,
-            kind:     0,
-            params:   [0.0; 8],
+            center:    Vec2::new(x, y),
+            rotation:  Quat::IDENTITY,
+            h_extent:  Vec2::splat(0.25),
+            radius:    0.0,
+            kind:      0,
+            params:    [0.0; 8],
+            lit_depth: 0.0,
+            lit_floor: 0.0,
         }
     }
 
@@ -193,6 +203,8 @@ mod tests
                 radius: 0.0,
                 kind: 0,
                 params: [0.0; 8],
+                lit_depth: 0.0,
+                lit_floor: 0.0,
             })
             .collect();
         let merged = merge_rows(&row);

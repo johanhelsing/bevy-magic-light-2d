@@ -10,6 +10,57 @@ fn min_march_sdf(camera_params: CameraParams) -> f32 {
     return camera_params.pixel_world_size.x * 0.6;
 }
 
+// Where a point inside an occluder, or nearer its boundary than the march's
+// minimum distance, gathers its light: itself pushed out along the SDF
+// gradient to that distance. A point already clear of every boundary is
+// its own. Inside a shape the distance is only an estimate (a union's is
+// exact outside, not in), so the push is taken again from where it lands,
+// a few times, until the point is clear.
+fn lit_from(
+    p:             vec2<f32>,
+    sdf_at_p:      f32,
+    sdf:           texture_2d<f32>,
+    sdf_sampler:   sampler,
+    camera_params: CameraParams,
+) -> vec2<f32> {
+    let min_sdf = min_march_sdf(camera_params);
+    let h = camera_params.pixel_world_size.x;
+    var at = p;
+    var d = sdf_at_p;
+    for (var i = 0; i < 4; i++) {
+        if d >= min_sdf {
+            return at;
+        }
+        let dx = bilinear_sample_r(sdf, sdf_sampler,
+            world_to_sdf_uv(at + vec2<f32>(h, 0.0), camera_params.view_proj, camera_params.inv_sdf_scale)) - d;
+        let dy = bilinear_sample_r(sdf, sdf_sampler,
+            world_to_sdf_uv(at + vec2<f32>(0.0, h), camera_params.view_proj, camera_params.inv_sdf_scale)) - d;
+        let grad = vec2<f32>(dx, dy);
+        let len = length(grad);
+        if len <= 0.0 {
+            return at;
+        }
+        at += grad / len * (min_sdf - d + h * 0.5);
+        d = bilinear_sample_r(sdf, sdf_sampler,
+            world_to_sdf_uv(at, camera_params.view_proj, camera_params.inv_sdf_scale));
+    }
+    return at;
+}
+
+// How much of its surface's light a point `sdf_at_p` into an occluder gets:
+// faded by depth over the occluder's `lit_depth`, never below its
+// `lit_floor`; 1 outside. An occluder with no depth gives its floor alone.
+fn interior_fade(sdf_at_p: f32, interior: vec2<f32>) -> f32 {
+    if sdf_at_p >= 0.0 {
+        return 1.0;
+    }
+    let floor = clamp(interior.y, 0.0, 1.0);
+    if interior.x <= 0.0 {
+        return floor;
+    }
+    return max(floor, exp(sdf_at_p / interior.x));
+}
+
 struct RayMarchResult {
     success:  i32,      //
     step: i32,          // steps

@@ -28,6 +28,8 @@ struct LightOccluder {
     kind: u32,
     params_a: vec4<f32>,
     params_b: vec4<f32>,
+    lit_depth: f32,
+    lit_floor: f32,
 }
 
 struct LightOccluderBuffer {
@@ -59,6 +61,7 @@ struct LightPassParams {
 
     indirect_rays_per_sample:    i32,
     indirect_rays_radius_factor: f32,
+    boundary_cells:              f32,
 }
 
 struct SkylightMask {

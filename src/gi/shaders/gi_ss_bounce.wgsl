@@ -1,9 +1,9 @@
 #import bevy_magic_light_2d::gi_types::LightPassParams
 #import bevy_magic_light_2d::gi_math::fast_normalize_2d
-#import bevy_magic_light_2d::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, screen_to_world, world_to_screen, world_to_ndc, probe_jitter_offset_world}
+#import bevy_magic_light_2d::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, bilinear_sample_r, sdf_interior, screen_to_world, world_to_screen, world_to_ndc, probe_jitter_offset_world}
 #import bevy_magic_light_2d::gi_halton::radical_inverse_vdc
 #import bevy_magic_light_2d::gi_attenuation
-#import bevy_magic_light_2d::gi_raymarch::raymarch_bounce
+#import bevy_magic_light_2d::gi_raymarch::{raymarch_bounce, lit_from, interior_fade}
 
 @group(0) @binding(0) var<uniform> camera_params:     CameraParams;
 @group(0) @binding(1) var<uniform> cfg:               LightPassParams;
@@ -46,6 +46,13 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
         camera_params.screen_size_inv,
     ) + probe_offset_world;
 
+    // A probe inside an occluder gathers its bounce from the nearest
+    // surface, faded by its depth as the occluder says (`gi_ss_probe`).
+    let probe_uv  = world_to_sdf_uv(probe_center_world, camera_params.view_proj, camera_params.inv_sdf_scale);
+    let probe_sdf = bilinear_sample_r(sdf_in, sdf_in_sampler, probe_uv);
+    let lit_at    = lit_from(probe_center_world, probe_sdf, sdf_in, sdf_in_sampler, camera_params);
+    let fade      = interior_fade(probe_sdf, sdf_interior(sdf_in, sdf_in_sampler, probe_uv));
+
     // Compute indirrect light.
     let mm                   = 0.7639320225; // Magic number.
     let pi                   = radians(180.0);
@@ -81,13 +88,16 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
             var base_angle  = angle_bias + golden_angle * f32(ray_i);
                 base_angle += radians(360.0) * hh;
 
-            var sample_world = probe_center_world + vec2<f32>(r) * fast_normalize_2d(vec2<f32>(
+            var sample_world = lit_at + vec2<f32>(r) * fast_normalize_2d(vec2<f32>(
                 cos(base_angle),
                 sin(base_angle),
             ));
 
+            if fade <= 0.0 {
+                continue;
+            }
             var raymarch_sample_to_probe = raymarch_bounce(
-                probe_center_world,
+                lit_at,
                 sample_world,
                 32,
                 sdf_in,
@@ -128,7 +138,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
         }
     }
 
-    indirect_irradiance = indirect_irradiance / f32(total_rays / k_max);
+    indirect_irradiance = indirect_irradiance * fade / f32(total_rays / k_max);
     total_irradiance  = cfg.indirect_light_contrib * indirect_irradiance
                       + cfg.direct_light_contrib   * direct_irradiance;
 

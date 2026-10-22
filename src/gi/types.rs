@@ -57,7 +57,7 @@ pub fn default_cone_half_angle() -> f32
 }
 
 #[rustfmt::skip]
-#[derive(Reflect, Component, Default, Clone, Copy)]
+#[derive(Reflect, Component, Default, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 // Visibility brings the Inherited and View visibility the extraction reads,
 // and Transform the GlobalTransform: without them a light or an occluder is
@@ -77,16 +77,17 @@ pub struct LightOccluder2D {
     #[reflect(default)]
     #[cfg_attr(feature = "serde", serde(default))]
     pub radius: f32,
-    /// 0: the rounded box. Above 0, with the `custom_sdf` feature: the app's
-    /// `custom_sdf(p, kind, a, b)` from its shader
-    /// `bevy_magic_light_2d::custom_sdf`, exact inside a disc of `h_size.x`
-    /// around the center and the disc's own distance outside it, which is a
-    /// lower bound the march can step by. `params` are its a and b, and
-    /// `radius` is then an inset: the shadow starts that far inside the
-    /// shape.
+    /// A shape of the app's own instead of the rounded box: a shader module
+    /// with `fn sdf(p: vec2<f32>, a: vec4<f32>, b: vec4<f32>) -> f32`, the
+    /// signed distance at `p` meters from the center in the occluder's
+    /// frame, `params` as `a` and `b`. Exact inside a disc of `h_size.x`
+    /// and the disc's own distance outside it, which is a lower bound the
+    /// march can step by; `radius` is then an inset, how far inside the
+    /// shape the shadow starts. Not saved: presentation gives it
+    /// (`gi::custom_sdf`).
     #[reflect(default)]
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub kind: u32,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub sdf: Option<Handle<Shader>>,
     #[reflect(default)]
     #[cfg_attr(feature = "serde", serde(default))]
     pub params: [f32; 8],

@@ -12,6 +12,7 @@ use bevy::window::{PrimaryWindow, WindowResized};
 use self::pipeline::GiTargets;
 use crate::gi::compositing::{setup_post_processing_camera, CameraTargets, PostProcessingMaterial};
 use crate::gi::constants::*;
+use crate::gi::custom_sdf::{compose_custom_sdfs, CustomSdfs};
 use crate::gi::pipeline::{
     system_queue_bind_groups,
     system_setup_gi_pipeline,
@@ -30,6 +31,7 @@ use crate::gi::resource::ComputedTargetSizes;
 use crate::prelude::BevyMagicLight2DSettings;
 
 mod constants;
+pub mod custom_sdf;
 mod occluder_merge;
 mod pipeline;
 mod pipeline_assets;
@@ -68,7 +70,10 @@ impl Plugin for BevyMagicLight2DPlugin
             )
                 .chain(),
         )
-        .add_systems(PreUpdate, handle_window_resize);
+        .add_systems(PreUpdate, handle_window_resize)
+        .add_systems(PostUpdate, compose_custom_sdfs);
+        let sdfs = CustomSdfs::new(&mut app.world_mut().resource_mut::<Assets<Shader>>());
+        app.insert_resource(sdfs);
 
         // Library shaders (imported by other shaders, need #define_import_path)
         // Use load_shader_library! for synchronous loading to avoid race conditions

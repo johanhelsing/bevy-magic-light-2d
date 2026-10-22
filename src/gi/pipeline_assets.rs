@@ -9,6 +9,7 @@ use bevy::render::Extract;
 use rand::Rng;
 
 use crate::gi::constants::{GI_SCREEN_PROBE_SIZE, SDF_CULL_MARGIN, SDF_VIEW_SCALE};
+use crate::gi::custom_sdf::CustomSdfs;
 use crate::gi::occluder_merge::{OccluderBox, RowMerger};
 use crate::gi::resource::ComputedTargetSizes;
 use crate::gi::types::{LightOccluder2D, OmniLightSource2D, SkylightLight2D, SkylightMask2D};
@@ -93,6 +94,7 @@ pub fn system_prepare_pipeline_assets(
 pub fn system_extract_pipeline_assets(
     res_light_settings:         Extract<Res<BevyMagicLight2DSettings>>,
     res_target_sizes:           Extract<Res<ComputedTargetSizes>>,
+    res_custom_sdfs:            Extract<Res<CustomSdfs>>,
 
     query_lights:               Extract<Query<(&GlobalTransform, &OmniLightSource2D, &InheritedVisibility, &ViewVisibility)>>,
     query_occluders:            Extract<Query<(&LightOccluder2D, &GlobalTransform, &InheritedVisibility, &ViewVisibility)>>,
@@ -158,13 +160,21 @@ pub fn system_extract_pipeline_assets(
                     && vviz.get()
                     && sdf_area.is_none_or(|area| (center - center.clamp(area.min, area.max)).length() <= reach)
             })
-            .map(|(occluder, global_transform, _, _)| OccluderBox {
-                center:   global_transform.translation().xy(),
-                rotation: global_transform.rotation(),
-                h_extent: occluder.h_size,
-                radius:   occluder.radius,
-                kind:     occluder.kind,
-                params:   occluder.params,
+            .filter_map(|(occluder, global_transform, _, _)| {
+                // A shape whose shader is not in the module yet casts
+                // nothing until it is.
+                let kind = match &occluder.sdf {
+                    None => 0,
+                    Some(shader) => res_custom_sdfs.kind(shader)?,
+                };
+                Some(OccluderBox {
+                    center: global_transform.translation().xy(),
+                    rotation: global_transform.rotation(),
+                    h_extent: occluder.h_size,
+                    radius: occluder.radius,
+                    kind,
+                    params: occluder.params,
+                })
             })
             .collect();
         let light_occluders = gpu_pipeline_assets.light_occluders.get_mut();

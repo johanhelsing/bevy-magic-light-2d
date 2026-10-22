@@ -1,9 +1,7 @@
 #import bevy_magic_light_2d::gi_types::LightOccluderBuffer
 #import bevy_magic_light_2d::gi_math::quat_mul
 #import bevy_magic_light_2d::gi_camera::{CameraParams, sdf_uv_to_world}
-#ifdef CUSTOM_SDF
 #import bevy_magic_light_2d::custom_sdf::custom_sdf
-#endif
 
 @group(0) @binding(0) var<uniform> camera_params:         CameraParams;
 @group(0) @binding(1) var<storage> light_occluder_buffer: LightOccluderBuffer;
@@ -14,7 +12,6 @@
 fn sdf_aabb_occluder(p: vec2<f32>, occluder_i: i32) -> f32 {
     let occluder = light_occluder_buffer.data[occluder_i];
     let local_p = quat_mul(occluder.rotation, vec3<f32>(occluder.center - p, 0.0)).xy;
-#ifdef CUSTOM_SDF
     // The app's own shape, exact inside its disc; outside, the disc's
     // distance, which the shape's cannot be less than. Its radius is an
     // inset: the shadow starts that far inside the shape, so the drawn
@@ -26,7 +23,6 @@ fn sdf_aabb_occluder(p: vec2<f32>, occluder_i: i32) -> f32 {
         }
         return custom_sdf(-local_p, occluder.kind, occluder.params_a, occluder.params_b) + occluder.radius;
     }
-#endif
     let d        = abs(local_p) - (occluder.h_extent - vec2<f32>(occluder.radius));
     let d_max    = max(d, vec2<f32>(0.0));
     let d_o      = length(d_max);

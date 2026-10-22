@@ -26,13 +26,19 @@ impl Default for TargetScalingParams
 #[reflect(Resource)]
 pub struct BevyMagicLight2DSettings
 {
-    pub light_pass_params:     LightPassParams,
-    pub target_scaling_params: TargetScalingParams,
+    pub light_pass_params:              LightPassParams,
+    pub target_scaling_params:          TargetScalingParams,
     /// Upload each row of equal occluders that touch end to end, a tilemap's
     /// tiles for one, as a single box. The SDF pass costs texels times
     /// occluders on the GPU; the merge costs a sort of the occluders on the
     /// CPU, in frames where any of them changed.
-    pub merge_occluder_rows:   bool,
+    pub merge_occluder_rows:            bool,
+    /// Drop a shape shader from the occluder module once no occluder uses
+    /// it, and recompile the SDF pass; off, the module only grows, so a
+    /// shape that comes and goes recompiles nothing. On for an app that
+    /// generates occluder shaders at runtime and would otherwise grow the
+    /// module without bound (`gi::custom_sdf`).
+    pub forget_unused_occluder_shaders: bool,
 }
 
 impl Default for BevyMagicLight2DSettings
@@ -40,9 +46,10 @@ impl Default for BevyMagicLight2DSettings
     fn default() -> Self
     {
         Self {
-            light_pass_params:     default(),
-            target_scaling_params: default(),
-            merge_occluder_rows:   true,
+            light_pass_params:              default(),
+            target_scaling_params:          default(),
+            merge_occluder_rows:            true,
+            forget_unused_occluder_shaders: false,
         }
     }
 }

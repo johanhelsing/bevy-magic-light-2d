@@ -13,12 +13,13 @@
 //! the set changes, so the pass recompiles by the ordinary shader reload and
 //! the app never names a kind.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use bevy::prelude::*;
 use bevy::shader::ShaderImport;
 
 use crate::gi::types::LightOccluder2D;
+use crate::prelude::BevyMagicLight2DSettings;
 
 /// The import path of the composed module.
 pub const MODULE_PATH: &str = "bevy_magic_light_2d::custom_sdf";
@@ -27,11 +28,14 @@ pub const MODULE_PATH: &str = "bevy_magic_light_2d::custom_sdf";
 #[derive(Resource)]
 pub struct CustomSdfs
 {
-    module:  Handle<Shader>,
-    /// By the shader's id: the `kind` the SDF pass dispatches on, from 1.
-    kinds:   HashMap<AssetId<Shader>, u32>,
-    /// The import paths in kind order: what the module was composed from.
-    imports: Vec<String>,
+    module:     Handle<Shader>,
+    /// The module's shapes in kind order, from 1: each shader's import path
+    /// and id. Only grows unless the settings say to forget unused ones.
+    entries:    Vec<(String, AssetId<Shader>)>,
+    /// Shaders an app registered ahead of any occluder, so the module holds
+    /// them from the start and a shape's first appearance recompiles
+    /// nothing. Strong handles, so the assets stay loaded.
+    registered: Vec<Handle<Shader>>,
 }
 
 impl CustomSdfs
@@ -41,15 +45,48 @@ impl CustomSdfs
         let module = shaders.add(module_shader(&[]));
         Self {
             module,
-            kinds: HashMap::new(),
-            imports: Vec::new(),
+            entries: Vec::new(),
+            registered: Vec::new(),
         }
     }
 
     /// The pass's number for a shape shader, when it is in the module.
     pub fn kind(&self, shader: &Handle<Shader>) -> Option<u32>
     {
-        self.kinds.get(&shader.id()).copied()
+        let id = shader.id();
+        self.entries
+            .iter()
+            .position(|(_, entry)| *entry == id)
+            .map(|i| i as u32 + 1)
+    }
+
+    /// Put a shape shader in the module before any occluder names it, so
+    /// the pass compiles with it once at startup instead of again at the
+    /// shape's first appearance. [`OccluderShaderAppExt::add_occluder_shader`]
+    /// is this at build time.
+    pub fn register(&mut self, shader: Handle<Shader>)
+    {
+        if !self.registered.contains(&shader) {
+            self.registered.push(shader);
+        }
+    }
+}
+
+/// [`CustomSdfs::register`] on the app, after [`crate::BevyMagicLight2DPlugin`].
+pub trait OccluderShaderAppExt
+{
+    fn add_occluder_shader(&mut self, shader: Handle<Shader>) -> &mut Self;
+}
+
+impl OccluderShaderAppExt for App
+{
+    fn add_occluder_shader(&mut self, shader: Handle<Shader>) -> &mut Self
+    {
+        self.world_mut()
+            .get_resource_mut::<CustomSdfs>()
+            .expect("add_occluder_shader after BevyMagicLight2DPlugin")
+            .register(shader);
+        self
     }
 }
 
@@ -74,53 +111,63 @@ fn compose(imports: &[String]) -> String
     source
 }
 
-/// Recomposes the module when the set of shape shaders in the world
-/// changes, or a shader loads: a shader not loaded yet is left out until it
-/// is, and one without a `#define_import_path` is left out with a warning.
+/// Recomposes the module when a shape shader joins: one an occluder in the
+/// world names, or one registered, as soon as it is loaded. A shader without
+/// a `#define_import_path` is left out with a warning. A shader leaves only
+/// when the settings say to forget unused ones and no occluder names it.
 pub(crate) fn compose_custom_sdfs(
     occluders: Query<&LightOccluder2D>,
     changed: Query<(), Changed<LightOccluder2D>>,
     mut removed: RemovedComponents<LightOccluder2D>,
     mut shader_events: MessageReader<AssetEvent<Shader>>,
+    settings: Res<BevyMagicLight2DSettings>,
     mut shaders: ResMut<Assets<Shader>>,
     mut sdfs: ResMut<CustomSdfs>,
 )
 {
     let shaders_moved = shader_events.read().count() > 0;
-    if changed.is_empty() && removed.read().next().is_none() && !shaders_moved {
+    let registered_moved = sdfs.is_changed();
+    if changed.is_empty() && removed.read().next().is_none() && !shaders_moved && !registered_moved
+    {
         return;
     }
-    let ids: HashSet<AssetId<Shader>> = occluders
+    let in_use: HashSet<AssetId<Shader>> = occluders
         .iter()
         .filter_map(|o| o.sdf.as_ref())
         .map(Handle::id)
         .collect();
-    let mut named: Vec<(String, AssetId<Shader>)> = ids
-        .into_iter()
-        .filter_map(|id| {
-            let shader = shaders.get(id)?;
-            match &shader.import_path {
-                ShaderImport::Custom(path) => Some((path.clone(), id)),
-                _ => {
-                    warn!("occluder shader {id:?} has no #define_import_path; it casts nothing");
-                    None
-                }
-            }
-        })
-        .collect();
-    named.sort();
-    let imports: Vec<String> = named.iter().map(|(path, _)| path.clone()).collect();
-    if imports == sdfs.imports {
+    let mut entries: Vec<(String, AssetId<Shader>)> = if settings.forget_unused_occluder_shaders {
+        sdfs.entries
+            .iter()
+            .filter(|(_, id)| in_use.contains(id))
+            .cloned()
+            .collect()
+    } else {
+        sdfs.entries.clone()
+    };
+    let wanted = in_use
+        .iter()
+        .copied()
+        .chain(sdfs.registered.iter().map(Handle::id));
+    for id in wanted {
+        if entries.iter().any(|(_, entry)| *entry == id) {
+            continue;
+        }
+        let Some(shader) = shaders.get(id) else {
+            continue;
+        };
+        match &shader.import_path {
+            ShaderImport::Custom(path) => entries.push((path.clone(), id)),
+            _ => warn!("occluder shader {id:?} has no #define_import_path; it casts nothing"),
+        }
+    }
+    if entries == sdfs.entries {
         return;
     }
-    sdfs.kinds = named
-        .iter()
-        .enumerate()
-        .map(|(i, (_, id))| (*id, i as u32 + 1))
-        .collect();
-    sdfs.imports = imports;
+    let imports: Vec<String> = entries.iter().map(|(path, _)| path.clone()).collect();
+    sdfs.entries = entries;
     let module = sdfs.module.id();
-    if let Err(err) = shaders.insert(module, module_shader(&sdfs.imports)) {
+    if let Err(err) = shaders.insert(module, module_shader(&imports)) {
         warn!("the custom occluder module could not be rewritten: {err}");
     }
 }

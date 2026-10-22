@@ -1,4 +1,5 @@
 pub use crate::gi::compositing::{setup_post_processing_camera, CameraTargets};
+pub use crate::gi::custom_sdf::{CustomSdfs, OccluderShaderAppExt};
 pub use crate::gi::render_layer::{
     CAMERA_LAYER_FLOOR,
     CAMERA_LAYER_OBJECTS,

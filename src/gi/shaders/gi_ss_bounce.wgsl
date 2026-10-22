@@ -50,8 +50,13 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     // surface, faded by its depth as the occluder says (`gi_ss_probe`).
     let probe_uv  = world_to_sdf_uv(probe_center_world, camera_params.view_proj, camera_params.inv_sdf_scale);
     let probe_sdf = bilinear_sample_r(sdf_in, sdf_in_sampler, probe_uv);
-    let lit_at    = lit_from(probe_center_world, probe_sdf, sdf_in, sdf_in_sampler, camera_params);
     let fade      = interior_fade(probe_sdf, sdf_interior(sdf_in, sdf_in_sampler, probe_uv));
+    // Inside a cave there is no bounce to gather: the direct light alone.
+    if (fade <= 0.0) {
+        textureStore(ss_bounce_out, out_atlas_tile_pose, vec4(cfg.direct_light_contrib * direct_irradiance, probe.w));
+        return;
+    }
+    let lit_at    = lit_from(probe_center_world, probe_sdf, sdf_in, sdf_in_sampler, camera_params);
 
     // Compute indirrect light.
     let mm                   = 0.7639320225; // Magic number.
@@ -93,9 +98,6 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
                 sin(base_angle),
             ));
 
-            if fade <= 0.0 {
-                continue;
-            }
             var raymarch_sample_to_probe = raymarch_bounce(
                 lit_at,
                 sample_world,

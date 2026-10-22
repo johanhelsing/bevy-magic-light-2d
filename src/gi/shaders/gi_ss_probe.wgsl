@@ -15,6 +15,19 @@
 @group(0) @binding(7) var          ss_probe_out:          texture_storage_2d<rgba16float, write>;
 
 
+// The probe's tile of the screen-space cache for this frame.
+fn store_probe(tile_xy: vec2<i32>, frame_index: i32, halton_jitter: vec2<f32>, irradiance: vec3<f32>) {
+    let atlas_row  = frame_index / cfg.probe_size;
+    let atlas_col  = frame_index % cfg.probe_size;
+    let out_atlas_tile_offset = vec2<i32>(
+        cfg.probe_atlas_cols * atlas_col,
+        cfg.probe_atlas_rows * atlas_row,
+    );
+    let out_atlas_tile_pose = out_atlas_tile_offset + tile_xy;
+    let out_halton_jitter   = pack2x16float(halton_jitter);
+    textureStore(ss_probe_out, out_atlas_tile_pose, vec4<f32>(irradiance, bitcast<f32>(out_halton_jitter)));
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let tile_xy      = vec2<i32>(invocation_id.xy);
@@ -62,8 +75,13 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     // way, as before.
     let probe_uv  = world_to_sdf_uv(probe_center_world, camera_params.view_proj, camera_params.inv_sdf_scale);
     let probe_sdf = bilinear_sample_r(sdf_in, sdf_in_sampler, probe_uv);
-    let lit_at    = lit_from(probe_center_world, probe_sdf, sdf_in, sdf_in_sampler, camera_params);
     let fade      = interior_fade(probe_sdf, sdf_interior(sdf_in, sdf_in_sampler, probe_uv));
+    // Inside a cave, the skylight is all there is: no push, no march.
+    if (fade <= 0.0) {
+        store_probe(tile_xy, frame_index, halton_jitter, probe_irradiance);
+        return;
+    }
+    let lit_at    = lit_from(probe_center_world, probe_sdf, sdf_in, sdf_in_sampler, camera_params);
 
     // Compute direct irradiance from lights in the current frame.
     // Probes inside occluders will have all marches fail naturally, so no
@@ -103,9 +121,6 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
             continue;
         }
 
-        if (fade <= 0.0) {
-            continue;
-        }
         let ray_result = raymarch_primary(
             lit_at,
             light.center,
@@ -129,18 +144,5 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
         }
     }
 
-    // Coordinates of the screen-space cache output tile.
-    let atlas_row  = frame_index / cfg.probe_size;
-    let atlas_col  = frame_index % cfg.probe_size;
-
-    let out_atlas_tile_offset = vec2<i32>(
-        cfg.probe_atlas_cols * atlas_col,
-        cfg.probe_atlas_rows * atlas_row,
-    );
-
-    let out_atlas_tile_pose = out_atlas_tile_offset + tile_xy;
-    let out_halton_jitter   = pack2x16float(halton_jitter);
-    let out_color           = vec4<f32>(probe_irradiance, bitcast<f32>(out_halton_jitter));
-
-    textureStore(ss_probe_out, out_atlas_tile_pose, out_color);
+    store_probe(tile_xy, frame_index, halton_jitter, probe_irradiance);
 }

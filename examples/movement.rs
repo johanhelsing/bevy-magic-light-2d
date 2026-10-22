@@ -56,6 +56,7 @@ fn setup(mut commands: Commands, camera_targets: Res<CameraTargets>)
             Visibility::default(),
             LightOccluder2D {
                 h_size: Vec2::new(80.0, 40.0),
+                radius: 0.0,
             },
             Mover,
         ))

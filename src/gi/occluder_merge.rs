@@ -13,13 +13,14 @@ use bevy::platform::hash::FixedHasher;
 use bevy::prelude::*;
 
 /// One occluder as the SDF pass sees it: a box of half size `h_extent`,
-/// turned by `rotation`, around `center`.
+/// turned by `rotation`, around `center`, its corners rounded by `radius`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct OccluderBox
 {
     pub center:   Vec2,
     pub rotation: Quat,
     pub h_extent: Vec2,
+    pub radius:   f32,
 }
 
 /// How near two lengths count as equal, as a fraction of the box's size:
@@ -56,9 +57,11 @@ impl RowMerger
     }
 }
 
-/// Merges each run of boxes that share rotation and size, sit on one line
-/// along their own x axis and touch end to end, into one box. Anything else
-/// passes through as it was. The order of the result is not the input's.
+/// Merges each run of sharp boxes that share rotation and size, sit on one
+/// line along their own x axis and touch end to end, into one box. Anything
+/// else passes through as it was: two rounded boxes end to end have rounded
+/// corners at their seam that one longer box has not. The order of the
+/// result is not the input's.
 pub(crate) fn merge_rows(boxes: &[OccluderBox]) -> Vec<OccluderBox>
 {
     // A box's row is what it shares with the boxes it can merge with: its
@@ -100,7 +103,9 @@ pub(crate) fn merge_rows(boxes: &[OccluderBox]) -> Vec<OccluderBox>
             i < order.len() && rows[order[i].2 as usize] == rows[order[i - 1].2 as usize] && {
                 let b = boxes[order[i].2 as usize];
                 let step = order[i].1 - order[i - 1].1;
-                (step - 2.0 * b.h_extent.x).abs() <= b.h_extent.max_element() * TOLERANCE
+                b.radius == 0.0
+                    && boxes[order[i - 1].2 as usize].radius == 0.0
+                    && (step - 2.0 * b.h_extent.x).abs() <= b.h_extent.max_element() * TOLERANCE
             };
         if touches {
             continue;
@@ -114,6 +119,7 @@ pub(crate) fn merge_rows(boxes: &[OccluderBox]) -> Vec<OccluderBox>
             center:   (first.center + last.center) / 2.0,
             rotation: first.rotation,
             h_extent: Vec2::new(first.h_extent.x + reach, first.h_extent.y),
+            radius:   first.radius,
         });
         run_start = i;
     }
@@ -131,6 +137,7 @@ mod tests
             center:   Vec2::new(x, y),
             rotation: Quat::IDENTITY,
             h_extent: Vec2::splat(0.25),
+            radius:   0.0,
         }
     }
 
@@ -175,6 +182,7 @@ mod tests
                 center: Vec2::new(5.0, -2.0) + along * (i as f32 * 0.5),
                 rotation,
                 h_extent: Vec2::splat(0.25),
+                radius: 0.0,
             })
             .collect();
         let merged = merge_rows(&row);
@@ -193,6 +201,17 @@ mod tests
         let mut turned = tile(1.0, 0.0);
         turned.rotation = Quat::from_rotation_z(0.1);
         assert_eq!(merge_rows(&[tile(0.0, 0.0), big, turned]).len(), 3);
+    }
+
+    #[test]
+    fn rounded_boxes_do_not_merge()
+    {
+        let mut round = tile(0.5, 0.0);
+        round.radius = 0.1;
+        let mut merged = merge_rows(&[tile(0.0, 0.0), round, tile(1.0, 0.0)]);
+        merged.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap());
+        assert_eq!(merged.len(), 3);
+        assert_eq!(merged[1].radius, 0.1);
     }
 
     #[test]

@@ -162,6 +162,7 @@ pub fn system_extract_pipeline_assets(
                 center:   global_transform.translation().xy(),
                 rotation: global_transform.rotation(),
                 h_extent: occluder.h_size,
+                radius:   occluder.radius,
             })
             .collect();
         let light_occluders = gpu_pipeline_assets.light_occluders.get_mut();
@@ -175,6 +176,7 @@ pub fn system_extract_pipeline_assets(
             center:   b.center,
             rotation: b.rotation.inverse().into(),
             h_extent: b.h_extent,
+            radius:   b.radius,
         }));
         light_occluders.count = light_occluders.data.len() as u32;
     }

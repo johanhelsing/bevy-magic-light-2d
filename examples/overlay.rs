@@ -13,10 +13,9 @@
 use std::f64::consts::PI;
 
 use bevy::camera::visibility::RenderLayers;
-use bevy::camera::RenderTarget;
+use bevy::camera::{Hdr, RenderTarget};
 use bevy::gizmos::config::{DefaultGizmoConfigGroup, GizmoConfigStore};
 use bevy::prelude::*;
-use bevy::camera::Hdr;
 use bevy::window::WindowResolution;
 use bevy_magic_light_2d::prelude::*;
 
@@ -73,6 +72,7 @@ fn setup(mut commands: Commands, camera_targets: Res<CameraTargets>)
             Visibility::default(),
             LightOccluder2D {
                 h_size: Vec2::new(80.0, 40.0),
+                radius: 0.0,
             },
             Mover,
         ))

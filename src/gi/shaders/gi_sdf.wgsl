@@ -6,14 +6,16 @@
 @group(0) @binding(1) var<storage> light_occluder_buffer: LightOccluderBuffer;
 @group(0) @binding(2) var          sdf_out:               texture_storage_2d<r16float, read_write>;
 
+// A box of half size `h_extent` with its corners rounded by `radius`: a
+// box at 0, a circle or a capsule when the radius is half the narrow side.
 fn sdf_aabb_occluder(p: vec2<f32>, occluder_i: i32) -> f32 {
     let occluder = light_occluder_buffer.data[occluder_i];
     let local_p = quat_mul(occluder.rotation, vec3<f32>(occluder.center - p, 0.0)).xy;
-    let d        = abs(local_p) - occluder.h_extent;
+    let d        = abs(local_p) - (occluder.h_extent - vec2<f32>(occluder.radius));
     let d_max    = max(d, vec2<f32>(0.0));
     let d_o      = length(d_max);
     let d_i      = min(max(d.x, d.y), 0.0);
-    return d_o + d_i;
+    return d_o + d_i - occluder.radius;
 }
 
 fn round_merge(s1: f32, s2: f32, r: f32) -> f32 {

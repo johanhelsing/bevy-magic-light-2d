@@ -67,7 +67,16 @@ pub fn default_cone_half_angle() -> f32
 #[reflect(Component)]
 #[cfg_attr(feature = "serde", reflect(Serialize, Deserialize))]
 pub struct LightOccluder2D {
+    /// Half the occluder's bounding box.
     pub h_size: Vec2,
+    /// How far its corners are rounded, 0 for a box. Every shape the SDF
+    /// pass draws is a rounded box: a circle is a square rounded by half
+    /// its side, a capsule a box rounded by half its width, and a shape
+    /// shrunk by a margin keeps its outline when the radius shrinks by the
+    /// same margin. Absent from a file saved before it existed: 0.
+    #[reflect(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub radius: f32,
 }
 
 impl Default for OmniLightSource2D
@@ -97,6 +106,7 @@ impl From<(f32, f32)> for LightOccluder2D
     {
         LightOccluder2D {
             h_size: value.into(),
+            radius: 0.0,
         }
     }
 }
@@ -105,7 +115,10 @@ impl From<Vec2> for LightOccluder2D
 {
     fn from(value: Vec2) -> Self
     {
-        LightOccluder2D { h_size: value }
+        LightOccluder2D {
+            h_size: value,
+            radius: 0.0,
+        }
     }
 }
 

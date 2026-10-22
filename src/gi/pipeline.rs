@@ -831,7 +831,11 @@ impl FromWorld for LightPassPipeline
             label:                            Some("gi_sdf_pipeline".into()),
             layout:                           vec![sdf_bind_group_layout.clone()],
             shader:                           shader_sdf,
-            shader_defs:                      vec![],
+            shader_defs:                      if cfg!(feature = "custom_sdf") {
+                vec!["CUSTOM_SDF".into()]
+            } else {
+                vec![]
+            },
             entry_point:                      Some(SDF_PIPELINE_ENTRY.into()),
             immediate_size:                   0,
             zero_initialize_workgroup_memory: false,

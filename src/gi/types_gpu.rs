@@ -62,6 +62,9 @@ pub struct GpuLightOccluder2D {
     pub rotation: Vec4,
     pub h_extent: Vec2,
     pub radius: f32,
+    pub kind: u32,
+    pub params_a: Vec4,
+    pub params_b: Vec4,
 }
 
 #[rustfmt::skip]

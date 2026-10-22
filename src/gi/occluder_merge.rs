@@ -21,6 +21,8 @@ pub(crate) struct OccluderBox
     pub rotation: Quat,
     pub h_extent: Vec2,
     pub radius:   f32,
+    pub kind:     u32,
+    pub params:   [f32; 8],
 }
 
 /// How near two lengths count as equal, as a fraction of the box's size:
@@ -104,7 +106,9 @@ pub(crate) fn merge_rows(boxes: &[OccluderBox]) -> Vec<OccluderBox>
                 let b = boxes[order[i].2 as usize];
                 let step = order[i].1 - order[i - 1].1;
                 b.radius == 0.0
+                    && b.kind == 0
                     && boxes[order[i - 1].2 as usize].radius == 0.0
+                    && boxes[order[i - 1].2 as usize].kind == 0
                     && (step - 2.0 * b.h_extent.x).abs() <= b.h_extent.max_element() * TOLERANCE
             };
         if touches {
@@ -120,6 +124,8 @@ pub(crate) fn merge_rows(boxes: &[OccluderBox]) -> Vec<OccluderBox>
             rotation: first.rotation,
             h_extent: Vec2::new(first.h_extent.x + reach, first.h_extent.y),
             radius:   first.radius,
+            kind:     first.kind,
+            params:   first.params,
         });
         run_start = i;
     }
@@ -138,6 +144,8 @@ mod tests
             rotation: Quat::IDENTITY,
             h_extent: Vec2::splat(0.25),
             radius:   0.0,
+            kind:     0,
+            params:   [0.0; 8],
         }
     }
 
@@ -183,6 +191,8 @@ mod tests
                 rotation,
                 h_extent: Vec2::splat(0.25),
                 radius: 0.0,
+                kind: 0,
+                params: [0.0; 8],
             })
             .collect();
         let merged = merge_rows(&row);

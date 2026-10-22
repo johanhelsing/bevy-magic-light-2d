@@ -13,6 +13,11 @@ readme = "README.md"
 default = ["egui"]
 egui = ["dep:bevy-inspector-egui"]
 serde = ["dep:serde"]
+# The app provides the shader `bevy_magic_light_2d::custom_sdf` with
+# `fn custom_sdf(p: vec2<f32>, kind: u32, a: vec4<f32>, b: vec4<f32>) -> f32`,
+# and an occluder of a `kind` above 0 is that distance, its `params` passed
+# through, inside a disc of its `h_size.x`, and the disc's own distance outside.
+custom_sdf = []
 
 [dependencies]
 bevy = { version = "0.19", default-features = false, features = [

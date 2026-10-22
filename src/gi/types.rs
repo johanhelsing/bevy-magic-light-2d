@@ -77,6 +77,19 @@ pub struct LightOccluder2D {
     #[reflect(default)]
     #[cfg_attr(feature = "serde", serde(default))]
     pub radius: f32,
+    /// 0: the rounded box. Above 0, with the `custom_sdf` feature: the app's
+    /// `custom_sdf(p, kind, a, b)` from its shader
+    /// `bevy_magic_light_2d::custom_sdf`, exact inside a disc of `h_size.x`
+    /// around the center and the disc's own distance outside it, which is a
+    /// lower bound the march can step by. `params` are its a and b, and
+    /// `radius` is then an inset: the shadow starts that far inside the
+    /// shape.
+    #[reflect(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub kind: u32,
+    #[reflect(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub params: [f32; 8],
 }
 
 impl Default for OmniLightSource2D
@@ -106,7 +119,7 @@ impl From<(f32, f32)> for LightOccluder2D
     {
         LightOccluder2D {
             h_size: value.into(),
-            radius: 0.0,
+            ..default()
         }
     }
 }
@@ -117,7 +130,7 @@ impl From<Vec2> for LightOccluder2D
     {
         LightOccluder2D {
             h_size: value,
-            radius: 0.0,
+            ..default()
         }
     }
 }

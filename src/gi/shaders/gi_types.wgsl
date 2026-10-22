@@ -25,6 +25,9 @@ struct LightOccluder {
     rotation: Quaternion,
     h_extent: vec2<f32>,
     radius: f32,
+    kind: u32,
+    params_a: vec4<f32>,
+    params_b: vec4<f32>,
 }
 
 struct LightOccluderBuffer {

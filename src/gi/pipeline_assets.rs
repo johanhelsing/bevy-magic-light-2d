@@ -163,6 +163,8 @@ pub fn system_extract_pipeline_assets(
                 rotation: global_transform.rotation(),
                 h_extent: occluder.h_size,
                 radius:   occluder.radius,
+                kind:     occluder.kind,
+                params:   occluder.params,
             })
             .collect();
         let light_occluders = gpu_pipeline_assets.light_occluders.get_mut();
@@ -177,6 +179,9 @@ pub fn system_extract_pipeline_assets(
             rotation: b.rotation.inverse().into(),
             h_extent: b.h_extent,
             radius:   b.radius,
+            kind:     b.kind,
+            params_a: Vec4::from_slice(&b.params[..4]),
+            params_b: Vec4::from_slice(&b.params[4..]),
         }));
         light_occluders.count = light_occluders.data.len() as u32;
     }

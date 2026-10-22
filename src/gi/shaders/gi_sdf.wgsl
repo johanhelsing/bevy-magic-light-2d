@@ -50,7 +50,9 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
      let world_pose = sdf_uv_to_world(uv,
         camera_params.inverse_view_proj,
         camera_params.sdf_scale);
-     var sdf_merged = 1e+10;
+     // Finite in the half-float texture: 1e10 would store as infinity, and
+     // a bilinear sample between two infinities at a texel center is NaN.
+     var sdf_merged = 6e4;
      var nearest = -1;
      for (var i: i32 = 0; i < i32(light_occluder_buffer.count); i++) {
         let d = sdf_aabb_occluder(world_pose.xy, i);

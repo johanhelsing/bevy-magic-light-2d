@@ -51,7 +51,8 @@ fn lit_from(
 // faded by depth over the occluder's `lit_depth`, never below its
 // `lit_floor`; 1 outside. An occluder with no depth gives its floor alone.
 fn interior_fade(sdf_at_p: f32, interior: vec2<f32>) -> f32 {
-    if sdf_at_p >= 0.0 {
+    // Written so a NaN distance counts as outside, never as a cave.
+    if !(sdf_at_p < 0.0) {
         return 1.0;
     }
     let floor = clamp(interior.y, 0.0, 1.0);

@@ -3,7 +3,7 @@
 #import bevy_magic_light_2d::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, screen_to_world, world_to_ndc, ndc_to_screen, bilinear_sample_r, sdf_interior, probe_jitter_offset_world}
 #import bevy_magic_light_2d::gi_attenuation::light_attenuation_r_two
 #import bevy_magic_light_2d::gi_halton::hammersley2d
-#import bevy_magic_light_2d::gi_raymarch::{raymarch_bounce, raymarch_primary, lit_from, interior_fade}
+#import bevy_magic_light_2d::gi_raymarch::{raymarch_bounce, raymarch_primary, lit_from, interior_fade, exit_toward}
 
 @group(0) @binding(0) var<uniform> camera_params:         CameraParams;
 @group(0) @binding(1) var<uniform> cfg:                   LightPassParams;
@@ -69,13 +69,16 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let skylight = cfg.skylight_color * is_masked;
     var probe_irradiance = vec3<f32>(skylight);
 
-    // A probe inside an occluder is lit as the nearest surface is, faded by
-    // its depth as the occluder says; one on the boundary band marches from
-    // outside it, so the face it is on is lit. The skylight it keeps either
-    // way, as before.
+    // A probe inside an occluder is lit by each light through the occluder
+    // toward that light, faded by how far it crosses inside, as the occluder
+    // says; one on the boundary band outside marches from itself pushed out,
+    // so the face it is on is lit and the far side of an occluder is not lit
+    // through it. The skylight it keeps either way, as before.
     let probe_uv  = world_to_sdf_uv(probe_center_world, camera_params.view_proj, camera_params.inv_sdf_scale);
     let probe_sdf = bilinear_sample_r(sdf_in, sdf_in_sampler, probe_uv);
-    let fade      = interior_fade(probe_sdf, sdf_interior(sdf_in, sdf_in_sampler, probe_uv));
+    let interior  = sdf_interior(sdf_in, sdf_in_sampler, probe_uv);
+    let fade      = interior_fade(probe_sdf, interior);
+    let is_inside = probe_sdf < 0.0;
     // Inside a cave, the skylight is all there is: no push, no march.
     if (fade <= 0.0) {
         store_probe(tile_xy, frame_index, halton_jitter, probe_irradiance);
@@ -121,8 +124,16 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
             continue;
         }
 
+        var march_from = lit_at;
+        var light_fade = 1.0;
+        if (is_inside) {
+            let exit = exit_toward(probe_center_world, light.center, sdf_in, sdf_in_sampler, camera_params);
+            march_from = exit.xy;
+            light_fade = interior_fade(-exit.z, interior);
+        }
+
         let ray_result = raymarch_primary(
-            lit_at,
+            march_from,
             light.center,
             32,
             sdf_in,
@@ -140,7 +151,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
         );
 
         if (ray_result.success > 0) {
-            probe_irradiance += light.color * att * light.intensity * cone * fade;
+            probe_irradiance += light.color * att * light.intensity * cone * light_fade;
         }
     }
 

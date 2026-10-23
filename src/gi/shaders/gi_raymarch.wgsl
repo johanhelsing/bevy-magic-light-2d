@@ -47,6 +47,41 @@ fn lit_from(
     return at;
 }
 
+// Where a point inside an occluder leaves it on its way to `toward`, and how
+// far it travelled inside: xy the first point clear of the boundary by the
+// march's minimum distance, z the distance inside. Inside, the distance to the
+// nearest surface is never more than the distance to where the ray leaves, so
+// stepping by it never steps out past the exit (sphere tracing, from inside).
+// A point `toward` inside the same occluder ends the walk there.
+fn exit_toward(
+    p:             vec2<f32>,
+    toward:        vec2<f32>,
+    sdf:           texture_2d<f32>,
+    sdf_sampler:   sampler,
+    camera_params: CameraParams,
+) -> vec3<f32> {
+    let min_sdf = min_march_sdf(camera_params);
+    let px      = camera_params.pixel_world_size.x;
+    let reach   = distance(p, toward);
+    let dir     = (toward - p) / max(reach, 1e-6);
+    var walked  = 0.0;
+    var inside  = 0.0;
+    for (var i = 0; i < 24; i++) {
+        let at = p + dir * walked;
+        let d = bilinear_sample_r(sdf, sdf_sampler,
+            world_to_sdf_uv(at, camera_params.view_proj, camera_params.inv_sdf_scale));
+        if !(d < min_sdf) || walked >= reach {
+            break;
+        }
+        let step = max(abs(d), px);
+        if d < 0.0 {
+            inside += step;
+        }
+        walked += step;
+    }
+    return vec3<f32>(p + dir * min(walked, reach), inside);
+}
+
 // How much of its surface's light a point `sdf_at_p` into an occluder gets:
 // faded by depth over the occluder's `lit_depth`, never below its
 // `lit_floor`; 1 outside. An occluder with no depth gives its floor alone.

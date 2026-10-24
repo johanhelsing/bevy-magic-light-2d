@@ -104,6 +104,14 @@ pub struct LightOccluder2D {
     #[reflect(default)]
     #[cfg_attr(feature = "serde", serde(default))]
     pub lit_floor: f32,
+    /// Which way a lamp's light reaches a point inside: false, from the
+    /// nearest point of the surface, lit or not, so the side away from the
+    /// lamp copies its shadowed surface; true, through the occluder toward
+    /// each lamp, faded by the distance it crosses, so a far side fades
+    /// instead. Only an interior with depth or floor above 0 is lit at all.
+    #[reflect(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub lit_through: bool,
 }
 
 impl Default for OmniLightSource2D

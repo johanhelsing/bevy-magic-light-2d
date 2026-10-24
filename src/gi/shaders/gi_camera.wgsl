@@ -107,6 +107,13 @@ fn sdf_interior(t: texture_2d<f32>, s: sampler, uv: vec2<f32>) -> vec2<f32> {
     return vec2<f32>(depth, floor);
 }
 
+// Whether the nearest occluder lights its interior through itself toward
+// each lamp at `uv` (`LightOccluder2D::lit_through`), above 0.5.
+fn sdf_through(t: texture_2d<f32>, s: sampler, uv: vec2<f32>) -> f32 {
+    let dims = textureDimensions(t);
+    return bilinear_filter(textureGather(3, t, s, uv), uv * vec2<f32>(dims));
+}
+
 fn bilinear_sample_rgba(t: texture_2d<f32>, s: sampler, uv: vec2<f32>) -> vec4<f32> {
     let dims = textureDimensions(t);
     let scaled_uv = uv * vec2<f32>(dims);

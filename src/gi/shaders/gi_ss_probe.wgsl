@@ -1,6 +1,6 @@
 #import bevy_magic_light_2d::gi_types::{LightPassParams, ProbeDataBuffer, SkylightMaskBuffer, LightSourceBuffer}
 #import bevy_magic_light_2d::gi_math
-#import bevy_magic_light_2d::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, screen_to_world, world_to_ndc, ndc_to_screen, bilinear_sample_r, sdf_interior, probe_jitter_offset_world}
+#import bevy_magic_light_2d::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, screen_to_world, world_to_ndc, ndc_to_screen, bilinear_sample_r, sdf_interior, sdf_through, probe_jitter_offset_world}
 #import bevy_magic_light_2d::gi_attenuation::light_attenuation_r_two
 #import bevy_magic_light_2d::gi_halton::hammersley2d
 #import bevy_magic_light_2d::gi_raymarch::{raymarch_bounce, raymarch_primary, lit_from, interior_fade, exit_toward}
@@ -79,6 +79,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let interior  = sdf_interior(sdf_in, sdf_in_sampler, probe_uv);
     let fade      = interior_fade(probe_sdf, interior);
     let is_inside = probe_sdf < 0.0;
+    let through   = sdf_through(sdf_in, sdf_in_sampler, probe_uv) > 0.5;
     // Inside a cave, the skylight is all there is: no push, no march.
     if (fade <= 0.0) {
         store_probe(tile_xy, frame_index, halton_jitter, probe_irradiance);
@@ -124,9 +125,11 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
             continue;
         }
 
+        // Lit through the occluder toward this lamp, or as the nearest point
+        // of its surface is (`LightOccluder2D::lit_through`).
         var march_from = lit_at;
-        var light_fade = 1.0;
-        if (is_inside) {
+        var light_fade = fade;
+        if (is_inside && through) {
             let exit = exit_toward(probe_center_world, light.center, sdf_in, sdf_in_sampler, camera_params);
             march_from = exit.xy;
             light_fade = interior_fade(-exit.z, interior);

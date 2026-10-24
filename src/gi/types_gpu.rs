@@ -67,6 +67,7 @@ pub struct GpuLightOccluder2D {
     pub params_b: Vec4,
     pub lit_depth: f32,
     pub lit_floor: f32,
+    pub lit_through: f32,
 }
 
 #[rustfmt::skip]

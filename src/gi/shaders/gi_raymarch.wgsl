@@ -82,6 +82,28 @@ fn exit_toward(
     return vec3<f32>(p + dir * min(walked, reach), inside);
 }
 
+// The outward unit normal of the nearest boundary at `p`: the SDF's gradient.
+fn sdf_normal(
+    p:             vec2<f32>,
+    sdf:           texture_2d<f32>,
+    sdf_sampler:   sampler,
+    camera_params: CameraParams,
+) -> vec2<f32> {
+    let h  = camera_params.pixel_world_size.x;
+    let at = bilinear_sample_r(sdf, sdf_sampler,
+        world_to_sdf_uv(p, camera_params.view_proj, camera_params.inv_sdf_scale));
+    let dx = bilinear_sample_r(sdf, sdf_sampler,
+        world_to_sdf_uv(p + vec2<f32>(h, 0.0), camera_params.view_proj, camera_params.inv_sdf_scale)) - at;
+    let dy = bilinear_sample_r(sdf, sdf_sampler,
+        world_to_sdf_uv(p + vec2<f32>(0.0, h), camera_params.view_proj, camera_params.inv_sdf_scale)) - at;
+    let g = vec2<f32>(dx, dy);
+    let len = length(g);
+    if len <= 0.0 {
+        return vec2<f32>(0.0);
+    }
+    return g / len;
+}
+
 // How much of its surface's light a point `sdf_at_p` into an occluder gets:
 // faded by depth over the occluder's `lit_depth`, never below its
 // `lit_floor`; 1 outside. An occluder with no depth gives its floor alone.

@@ -297,7 +297,7 @@ fn setup(
     // Add walls with occluder component.
     let occluder_data = LightOccluder2D {
         h_size: block_size / 2.0,
-        radius: 0.0,
+        ..default()
     };
     for (i, row) in walls_info.iter().enumerate() {
         for (j, cell) in row.iter().enumerate() {
@@ -393,7 +393,7 @@ fn setup(
                     .insert(RenderLayers::from_layers(CAMERA_LAYER_OBJECTS))
                     .insert(LightOccluder2D {
                         h_size: Vec2::splat(2.0),
-                        radius: 0.0,
+                        ..default()
                     })
                     .insert(Name::new("candle_1"))
                     .id(),
@@ -427,7 +427,7 @@ fn setup(
                     .insert(RenderLayers::from_layers(CAMERA_LAYER_OBJECTS))
                     .insert(LightOccluder2D {
                         h_size: Vec2::splat(2.0),
-                        radius: 0.0,
+                        ..default()
                     })
                     .insert(Name::new("candle_2"))
                     .id(),
@@ -462,7 +462,7 @@ fn setup(
                     .insert(RenderLayers::from_layers(CAMERA_LAYER_OBJECTS))
                     .insert(LightOccluder2D {
                         h_size: Vec2::splat(2.0),
-                        radius: 0.0,
+                        ..default()
                     })
                     .insert(Name::new("candle_3"))
                     .id(),
@@ -496,7 +496,7 @@ fn setup(
                     .insert(RenderLayers::from_layers(CAMERA_LAYER_OBJECTS))
                     .insert(LightOccluder2D {
                         h_size: Vec2::splat(2.0),
-                        radius: 0.0,
+                        ..default()
                     })
                     .insert(Name::new("candle_4"))
                     .id(),
@@ -528,7 +528,7 @@ fn setup(
                     .insert(RenderLayers::from_layers(CAMERA_LAYER_OBJECTS))
                     .insert(LightOccluder2D {
                         h_size: Vec2::new(72.8, 31.0),
-                        radius: 0.0,
+                        ..default()
                     })
                     .insert(Name::new("tomb_1"))
                     .id(),
@@ -560,7 +560,7 @@ fn setup(
                     .insert(RenderLayers::from_layers(CAMERA_LAYER_OBJECTS))
                     .insert(LightOccluder2D {
                         h_size: Vec2::new(72.8, 31.0),
-                        radius: 0.0,
+                        ..default()
                     })
                     .insert(Name::new("tomb_1"))
                     .id(),

@@ -176,6 +176,7 @@ pub fn system_extract_pipeline_assets(
                     params: occluder.params,
                     lit_depth: occluder.lit_depth,
                     lit_floor: occluder.lit_floor,
+                    lit_facing: occluder.lit_facing,
                 })
             })
             .collect();
@@ -196,6 +197,7 @@ pub fn system_extract_pipeline_assets(
             params_b: Vec4::from_slice(&b.params[4..]),
             lit_depth: b.lit_depth,
             lit_floor: b.lit_floor,
+            lit_facing: b.lit_facing,
         }));
         light_occluders.count = light_occluders.data.len() as u32;
     }

@@ -1,9 +1,9 @@
 #import bevy_magic_light_2d::gi_types::{LightPassParams, ProbeDataBuffer, SkylightMaskBuffer, LightSourceBuffer}
 #import bevy_magic_light_2d::gi_math
-#import bevy_magic_light_2d::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, screen_to_world, world_to_ndc, ndc_to_screen, bilinear_sample_r, sdf_interior, probe_jitter_offset_world}
+#import bevy_magic_light_2d::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, screen_to_world, world_to_ndc, ndc_to_screen, bilinear_sample_r, sdf_interior, sdf_facing, probe_jitter_offset_world}
 #import bevy_magic_light_2d::gi_attenuation::light_attenuation_r_two
 #import bevy_magic_light_2d::gi_halton::hammersley2d
-#import bevy_magic_light_2d::gi_raymarch::{raymarch_bounce, raymarch_primary, lit_from, interior_fade, exit_toward}
+#import bevy_magic_light_2d::gi_raymarch::{raymarch_bounce, raymarch_primary, lit_from, interior_fade, exit_toward, sdf_normal}
 
 @group(0) @binding(0) var<uniform> camera_params:         CameraParams;
 @group(0) @binding(1) var<uniform> cfg:                   LightPassParams;
@@ -79,6 +79,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let interior  = sdf_interior(sdf_in, sdf_in_sampler, probe_uv);
     let fade      = interior_fade(probe_sdf, interior);
     let is_inside = probe_sdf < 0.0;
+    let facing    = clamp(sdf_facing(sdf_in, sdf_in_sampler, probe_uv), 0.0, 1.0);
     // Inside a cave, the skylight is all there is: no push, no march.
     if (fade <= 0.0) {
         store_probe(tile_xy, frame_index, halton_jitter, probe_irradiance);
@@ -130,6 +131,13 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
             let exit = exit_toward(probe_center_world, light.center, sdf_in, sdf_in_sampler, camera_params);
             march_from = exit.xy;
             light_fade = interior_fade(-exit.z, interior);
+            // Shaded by the angle the lamp's light enters at, as a lit
+            // sphere is: full facing the lamp, nothing grazing it.
+            if (facing > 0.0) {
+                let normal  = sdf_normal(exit.xy, sdf_in, sdf_in_sampler, camera_params);
+                let to_lamp = normalize(light.center - exit.xy);
+                light_fade *= mix(1.0, max(dot(normal, to_lamp), 0.0), facing);
+            }
         }
 
         let ray_result = raymarch_primary(

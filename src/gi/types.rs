@@ -104,6 +104,13 @@ pub struct LightOccluder2D {
     #[reflect(default)]
     #[cfg_attr(feature = "serde", serde(default))]
     pub lit_floor: f32,
+    /// How much a lamp's light inside the occluder follows the angle at
+    /// which it enters, 0 to 1: at 0 every point at one depth gets the same
+    /// share; at 1 the surface facing the lamp squarely is lit full and a
+    /// grazing one dark, so a round occluder shades like a moon.
+    #[reflect(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub lit_facing: f32,
 }
 
 impl Default for OmniLightSource2D

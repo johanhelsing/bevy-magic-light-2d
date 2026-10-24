@@ -30,6 +30,7 @@ struct LightOccluder {
     params_b: vec4<f32>,
     lit_depth: f32,
     lit_floor: f32,
+    lit_facing: f32,
 }
 
 struct LightOccluderBuffer {

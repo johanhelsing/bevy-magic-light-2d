@@ -5,8 +5,8 @@
 
 @group(0) @binding(0) var<uniform> camera_params:         CameraParams;
 @group(0) @binding(1) var<storage> light_occluder_buffer: LightOccluderBuffer;
-// x the distance; y and z how the nearest occluder lights its interior
-// (`lit_depth`, `lit_floor`).
+// x the distance; y, z and w how the nearest occluder lights its interior
+// (`lit_depth`, `lit_floor`, `lit_facing`).
 @group(0) @binding(2) var          sdf_out:               texture_storage_2d<rgba16float, write>;
 
 // A box of half size `h_extent` with its corners rounded by `radius`: a
@@ -61,11 +61,11 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
             nearest = i;
         }
      }
-     var lit = vec2<f32>(0.0);
+     var lit = vec3<f32>(0.0);
      if (nearest >= 0) {
         let occluder = light_occluder_buffer.data[nearest];
-        lit = vec2<f32>(occluder.lit_depth, occluder.lit_floor);
+        lit = vec3<f32>(occluder.lit_depth, occluder.lit_floor, occluder.lit_facing);
      }
 
-    textureStore(sdf_out, texel_pos, vec4<f32>(sdf_merged, lit.x, lit.y, 0.0));
+    textureStore(sdf_out, texel_pos, vec4<f32>(sdf_merged, lit.x, lit.y, lit.z));
 }

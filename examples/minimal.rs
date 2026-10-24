@@ -37,7 +37,7 @@ fn setup(mut commands: Commands, camera_targets: Res<CameraTargets>)
             Visibility::default(),
             LightOccluder2D {
                 h_size: Vec2::new(40.0, 20.0),
-                radius: 0.0,
+                ..default()
             },
         ))
         .id();

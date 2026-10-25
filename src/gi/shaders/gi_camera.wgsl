@@ -81,50 +81,64 @@ fn sdf_uv_to_world(uv_in: vec2<f32>, inverse_view_proj: mat4x4<f32>, sdf_scale: 
     return (inverse_view_proj * vec4<f32>(ndc, 0.0, 1.0)).xy;
 }
 
-fn bilinear_filter(texels: vec4<f32>, scaled_uv: vec2<f32>) -> f32 {
+// The 2x2 texels a bilinear sample at `uv` reads and the weights within
+// them: `uv` the center of that footprint, to gather at, `f` the fraction
+// of the way from its first texel to its second. Gathering at the sample's
+// own uv leaves the footprint to the sampler, which rounds the coordinate
+// to fixed point before it floors it, while the weights are floored in
+// f32: a sample a rounding error short of a texel center then weights the
+// texel after the one the sampler took, and reads the value one texel
+// over. The irradiance filter samples at pixel corners, and at the shipped
+// scale every fourth of those sits on a texel center, so the seam ran
+// along a rock's rim as teeth, each a texel long. Gathered at the
+// footprint's center, the sampler is half a texel from any rounding
+// boundary and agrees with the weights.
+struct Footprint {
+    uv: vec2<f32>,
+    f:  vec2<f32>,
+}
+
+fn footprint(uv: vec2<f32>, dims: vec2<u32>) -> Footprint {
+    let dims_f = vec2<f32>(dims);
+    let p  = uv * dims_f - 0.5;
+    let p0 = floor(p);
+    return Footprint((p0 + 1.0) / dims_f, p - p0);
+}
+
+fn bilinear_filter(texels: vec4<f32>, f: vec2<f32>) -> f32 {
     // texels.x = -u, +v
     // texels.y = +u, +v,
     // texels.z = +u, -v,
     // texels.w = -u, -v
-    let f = fract(scaled_uv - 0.5);
     return mix(mix(texels.w, texels.z, f.x), mix(texels.x, texels.y, f.x), f.y);
 }
 
 fn bilinear_sample_r(t: texture_2d<f32>, s: sampler, uv: vec2<f32>) -> f32 {
-    let texels = textureGather(0, t, s, uv);
-    let dims = textureDimensions(t);
-    let scaled_uv = uv * vec2<f32>(dims);
-    return bilinear_filter(texels, scaled_uv);
+    let fp = footprint(uv, textureDimensions(t));
+    return bilinear_filter(textureGather(0, t, s, fp.uv), fp.f);
 }
 
 // How the nearest occluder lights its interior at `uv` of the distance
 // texture: x how far light reaches in, meters, y the floor (`LightOccluder2D`).
 fn sdf_interior(t: texture_2d<f32>, s: sampler, uv: vec2<f32>) -> vec2<f32> {
-    let dims = textureDimensions(t);
-    let scaled_uv = uv * vec2<f32>(dims);
-    let depth = bilinear_filter(textureGather(1, t, s, uv), scaled_uv);
-    let floor = bilinear_filter(textureGather(2, t, s, uv), scaled_uv);
+    let fp = footprint(uv, textureDimensions(t));
+    let depth = bilinear_filter(textureGather(1, t, s, fp.uv), fp.f);
+    let floor = bilinear_filter(textureGather(2, t, s, fp.uv), fp.f);
     return vec2<f32>(depth, floor);
 }
 
 // Whether the nearest occluder lights its interior through itself toward
 // each lamp at `uv` (`LightOccluder2D::lit_through`), above 0.5.
 fn sdf_through(t: texture_2d<f32>, s: sampler, uv: vec2<f32>) -> f32 {
-    let dims = textureDimensions(t);
-    return bilinear_filter(textureGather(3, t, s, uv), uv * vec2<f32>(dims));
+    let fp = footprint(uv, textureDimensions(t));
+    return bilinear_filter(textureGather(3, t, s, fp.uv), fp.f);
 }
 
 fn bilinear_sample_rgba(t: texture_2d<f32>, s: sampler, uv: vec2<f32>) -> vec4<f32> {
-    let dims = textureDimensions(t);
-    let scaled_uv = uv * vec2<f32>(dims);
-    
-    let r_texels = textureGather(0, t, s, uv);
-    let r = bilinear_filter(r_texels, scaled_uv);
-    let g_texels = textureGather(1, t, s, uv);
-    let g = bilinear_filter(g_texels, scaled_uv);
-    let b_texels = textureGather(2, t, s, uv);
-    let b = bilinear_filter(b_texels, scaled_uv);
-    let a_texels = textureGather(3, t, s, uv);
-    let a = bilinear_filter(a_texels, scaled_uv);
+    let fp = footprint(uv, textureDimensions(t));
+    let r = bilinear_filter(textureGather(0, t, s, fp.uv), fp.f);
+    let g = bilinear_filter(textureGather(1, t, s, fp.uv), fp.f);
+    let b = bilinear_filter(textureGather(2, t, s, fp.uv), fp.f);
+    let a = bilinear_filter(textureGather(3, t, s, fp.uv), fp.f);
     return vec4<f32>(r, g, b, a);
 }

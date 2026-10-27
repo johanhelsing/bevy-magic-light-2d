@@ -221,6 +221,72 @@ fn raymarch_primary(
 }
 
 
+// The march from a probe toward a light: on the fine SDF while it lasts,
+// then on the coarse one, which covers more of the world at a lower
+// resolution. A wall thinner than a coarse texel can sample above zero
+// there, so a coarse sample blocks within half a texel of a surface. The
+// fine SDF hands over a texel inside its edge, where a bilinear sample
+// still reads only its own texels, not the zero border past them. The
+// extraction drops a light past the coarse SDF, so a march leaving it
+// fails.
+fn raymarch_light(
+    in_ray_origin:      vec2<f32>,
+    in_ray_target:      vec2<f32>,
+    max_steps:          i32,
+    sdf:                texture_2d<f32>,
+    coarse_sdf:         texture_2d<f32>,
+    sdf_sampler:        sampler,
+    camera_params:      CameraParams,
+    coarse_params:      CameraParams,
+    rm_jitter_contrib:  f32,
+) -> RayMarchResult {
+
+    let ray_direction = normalize(in_ray_target - in_ray_origin);
+    let stop_at       = distance_squared(in_ray_origin, in_ray_target);
+    let min_sdf       = min_march_sdf(camera_params);
+    let coarse_texel  = camera_params.pixel_world_size.x * camera_params.screen_size.x
+                      * coarse_params.sdf_scale.x / f32(textureDimensions(coarse_sdf).x);
+    let coarse_min_sdf = max(min_sdf, coarse_texel * 0.5);
+    let fine_edge     = 1.0 / vec2<f32>(textureDimensions(sdf));
+
+    var ray_progress: f32 = 0.0;
+    var h                 = vec2<f32>(0.0);
+    var h_prev            = h;
+
+    for (var i: i32 = 0; i < max_steps; i++) {
+
+        h_prev = h;
+        h = in_ray_origin + ray_progress * ray_direction;
+
+        if ray_progress * ray_progress >= stop_at {
+            return RayMarchResult(1, i, h_prev);
+        }
+
+        var scene_dist: f32;
+        var blocked_at: f32;
+        let uv = world_to_sdf_uv(h, camera_params.view_proj, camera_params.inv_sdf_scale);
+        if all(uv >= fine_edge) && all(uv <= 1.0 - fine_edge) {
+            scene_dist = bilinear_sample_r(sdf, sdf_sampler, uv);
+            blocked_at = min_sdf;
+        } else {
+            let coarse_uv = world_to_sdf_uv(h, coarse_params.view_proj, coarse_params.inv_sdf_scale);
+            if any(coarse_uv < vec2<f32>(0.0)) || any(coarse_uv > vec2<f32>(1.0)) {
+                return RayMarchResult(0, i, h_prev);
+            }
+            scene_dist = bilinear_sample_r(coarse_sdf, sdf_sampler, coarse_uv);
+            blocked_at = coarse_min_sdf;
+        }
+
+        if scene_dist <= blocked_at {
+            return RayMarchResult(0, i, h);
+        }
+
+        ray_progress += scene_dist * (1.0 - rm_jitter_contrib) + rm_jitter_contrib * scene_dist * hash(h);
+    }
+
+    return RayMarchResult(0, max_steps, h);
+}
+
 fn raymarch_bounce(
     in_ray_origin:      vec2<f32>,
     in_ray_target:      vec2<f32>,

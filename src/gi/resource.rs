@@ -11,14 +11,21 @@ use crate::gi::util;
 pub struct TargetScalingParams
 {
     /// Scale factor for SDF map.
-    pub sdf_scale: f32,
+    pub sdf_scale:        f32,
+    /// Texels of the coarse SDF per screen pixel. It covers
+    /// `COARSE_SDF_VIEW_SCALE` times the view, so at 0.25 one texel spans 24
+    /// screen pixels.
+    pub coarse_sdf_scale: f32,
 }
 
 impl Default for TargetScalingParams
 {
     fn default() -> Self
     {
-        Self { sdf_scale: 0.5 }
+        Self {
+            sdf_scale:        0.5,
+            coarse_sdf_scale: 0.25,
+        }
     }
 }
 
@@ -115,6 +122,8 @@ pub struct ComputedTargetSizes
     pub sdf_target_isize: IVec2,
     pub sdf_target_usize: UVec2,
 
+    pub coarse_sdf_target_usize: UVec2,
+
     pub probe_grid_size:  Vec2,
     pub probe_grid_isize: IVec2,
     pub probe_grid_usize: UVec2,
@@ -140,6 +149,11 @@ impl ComputedTargetSizes
             util::align_to_work_group_grid(sizes.sdf_target_size.ceil().as_ivec2());
         sizes.sdf_target_usize = sizes.sdf_target_isize.as_uvec2();
 
+        sizes.coarse_sdf_target_usize = util::align_to_work_group_grid(
+            (primary_size * params.coarse_sdf_scale).ceil().as_ivec2(),
+        )
+        .as_uvec2();
+
         sizes.probe_grid_isize = util::align_to_work_group_grid(
             (sizes.primary_target_size / (GI_SCREEN_PROBE_SIZE as f32))
                 .ceil()
@@ -157,6 +171,8 @@ impl ComputedTargetSizes
             && self.primary_target_usize.y > 0
             && self.sdf_target_usize.x > 0
             && self.sdf_target_usize.y > 0
+            && self.coarse_sdf_target_usize.x > 0
+            && self.coarse_sdf_target_usize.y > 0
             && self.probe_grid_usize.x > 0
             && self.probe_grid_usize.y > 0
     }

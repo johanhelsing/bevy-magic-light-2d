@@ -1,14 +1,13 @@
-use bevy::camera::visibility::{self, VisibilityClass};
 use bevy::prelude::*;
 
 #[rustfmt::skip]
 #[derive(Reflect, Component, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-// Visibility brings the Inherited and View visibility the extraction reads,
-// and Transform the GlobalTransform: without them a light or an occluder is
-// skipped with no warning.
-#[require(VisibilityClass, Visibility, Transform)]
-#[component(on_add = visibility::add_visibility_class::<OmniLightSource2D>)]
+// Visibility brings the InheritedVisibility the extraction reads, and
+// Transform the GlobalTransform: without them a light or an occluder is
+// skipped with no warning. Not the view's frustum: a light or an occluder
+// off screen still lights or shades it (`pipeline_assets`).
+#[require(Visibility, Transform)]
 #[reflect(Component, Default)]
 #[cfg_attr(feature = "serde", reflect(Serialize, Deserialize))]
 pub struct OmniLightSource2D {
@@ -59,11 +58,11 @@ pub fn default_cone_half_angle() -> f32
 #[rustfmt::skip]
 #[derive(Reflect, Component, Default, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-// Visibility brings the Inherited and View visibility the extraction reads,
-// and Transform the GlobalTransform: without them a light or an occluder is
-// skipped with no warning.
-#[require(VisibilityClass, Visibility, Transform)]
-#[component(on_add = visibility::add_visibility_class::<LightOccluder2D>)]
+// Visibility brings the InheritedVisibility the extraction reads, and
+// Transform the GlobalTransform: without them a light or an occluder is
+// skipped with no warning. Not the view's frustum: a light or an occluder
+// off screen still lights or shades it (`pipeline_assets`).
+#[require(Visibility, Transform)]
 #[reflect(Component)]
 #[cfg_attr(feature = "serde", reflect(Serialize, Deserialize))]
 pub struct LightOccluder2D {

@@ -3,7 +3,7 @@
 #import bevy_magic_light_2d::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, screen_to_world, world_to_ndc, ndc_to_screen, bilinear_sample_r, sdf_interior, sdf_through, probe_jitter_offset_world}
 #import bevy_magic_light_2d::gi_attenuation::light_attenuation_r_two
 #import bevy_magic_light_2d::gi_halton::hammersley2d
-#import bevy_magic_light_2d::gi_raymarch::{raymarch_bounce, raymarch_primary, lit_from, interior_fade, exit_toward}
+#import bevy_magic_light_2d::gi_raymarch::{raymarch_light, lit_from, interior_fade, exit_toward}
 
 @group(0) @binding(0) var<uniform> camera_params:         CameraParams;
 @group(0) @binding(1) var<uniform> cfg:                   LightPassParams;
@@ -13,6 +13,10 @@
 @group(0) @binding(5) var          sdf_in:                texture_2d<f32>;
 @group(0) @binding(6) var          sdf_in_sampler:        sampler;
 @group(0) @binding(7) var          ss_probe_out:          texture_storage_2d<rgba16float, write>;
+// The coarse SDF, over more of the world than `sdf_in`, and the camera that
+// maps to it (`sdf_scale` the coarse one).
+@group(0) @binding(8) var<uniform> coarse_camera_params:  CameraParams;
+@group(0) @binding(9) var          coarse_sdf_in:         texture_2d<f32>;
 
 
 // The probe's tile of the screen-space cache for this frame.
@@ -135,13 +139,15 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
             light_fade = interior_fade(-exit.z, interior);
         }
 
-        let ray_result = raymarch_primary(
+        let ray_result = raymarch_light(
             march_from,
             light.center,
             32,
             sdf_in,
+            coarse_sdf_in,
             sdf_in_sampler,
             camera_params,
+            coarse_camera_params,
             0.3
         );
 

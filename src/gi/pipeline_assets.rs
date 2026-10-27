@@ -8,7 +8,13 @@ use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::Extract;
 use rand::Rng;
 
-use crate::gi::constants::{GI_SCREEN_PROBE_SIZE, SDF_CULL_MARGIN, SDF_VIEW_SCALE};
+use crate::gi::constants::{
+    COARSE_SDF_LIGHT_FADE,
+    COARSE_SDF_VIEW_SCALE,
+    GI_SCREEN_PROBE_SIZE,
+    SDF_CULL_MARGIN,
+    SDF_VIEW_SCALE,
+};
 use crate::gi::custom_sdf::CustomSdfs;
 use crate::gi::occluder_merge::{OccluderBox, RowMerger};
 use crate::gi::resource::ComputedTargetSizes;
@@ -58,12 +64,15 @@ pub(crate) fn load_embedded_shader(asset_server: &AssetServer, shader_file: &str
 #[rustfmt::skip]
 #[derive(Default, Resource)]
 pub struct LightPassPipelineAssets {
-    pub camera_params:     UniformBuffer<GpuCameraParams>,
-    pub light_pass_params: UniformBuffer<GpuLightPassParams>,
-    pub light_sources:     StorageBuffer<GpuLightSourceBuffer>,
-    pub light_occluders:   StorageBuffer<GpuLightOccluderBuffer>,
-    pub probes:            StorageBuffer<GpuProbeDataBuffer>,
-    pub skylight_masks:    StorageBuffer<GpuSkylightMaskBuffer>,
+    pub camera_params:          UniformBuffer<GpuCameraParams>,
+    /// The camera as the coarse SDF sees it: `sdf_scale` is the coarse one.
+    pub coarse_camera_params:   UniformBuffer<GpuCameraParams>,
+    pub light_pass_params:      UniformBuffer<GpuLightPassParams>,
+    pub light_sources:          StorageBuffer<GpuLightSourceBuffer>,
+    pub light_occluders:        StorageBuffer<GpuLightOccluderBuffer>,
+    pub coarse_light_occluders: StorageBuffer<GpuLightOccluderBuffer>,
+    pub probes:                 StorageBuffer<GpuProbeDataBuffer>,
+    pub skylight_masks:         StorageBuffer<GpuSkylightMaskBuffer>,
 }
 
 impl LightPassPipelineAssets
@@ -72,7 +81,9 @@ impl LightPassPipelineAssets
     {
         self.light_sources.write_buffer(device, queue);
         self.light_occluders.write_buffer(device, queue);
+        self.coarse_light_occluders.write_buffer(device, queue);
         self.camera_params.write_buffer(device, queue);
+        self.coarse_camera_params.write_buffer(device, queue);
         self.light_pass_params.write_buffer(device, queue);
         self.probes.write_buffer(device, queue);
         self.skylight_masks.write_buffer(device, queue);
@@ -96,8 +107,8 @@ pub fn system_extract_pipeline_assets(
     res_target_sizes:           Extract<Res<ComputedTargetSizes>>,
     res_custom_sdfs:            Extract<Res<CustomSdfs>>,
 
-    query_lights:               Extract<Query<(&GlobalTransform, &OmniLightSource2D, &InheritedVisibility, &ViewVisibility)>>,
-    query_occluders:            Extract<Query<(&LightOccluder2D, &GlobalTransform, &InheritedVisibility, &ViewVisibility)>>,
+    query_lights:               Extract<Query<(&GlobalTransform, &OmniLightSource2D, &InheritedVisibility)>>,
+    query_occluders:            Extract<Query<(&LightOccluder2D, &GlobalTransform, &InheritedVisibility)>>,
     query_camera:               Extract<Query<(&Camera, &GlobalTransform), With<FloorCamera>>>,
     query_masks:                Extract<Query<(&GlobalTransform, &SkylightMask2D)>>,
     query_skylight_light:       Extract<Query<&SkylightLight2D>>,
@@ -111,18 +122,33 @@ pub fn system_extract_pipeline_assets(
 
     *gpu_target_sizes = **res_target_sizes;
 
+    let camera = query_camera.single().ok().map(|(camera, transform)| {
+        let view: Mat4 = transform.affine().into();
+        (view * camera.clip_from_view().inverse(), camera.clip_from_view() * view.inverse())
+    });
+
     {
         let light_sources = gpu_pipeline_assets.light_sources.get_mut();
         let mut rng = rand::rng();
         light_sources.count = 0;
         light_sources.data.clear();
-        for (transform, light_source, hviz, vviz) in query_lights.iter() {
-            if hviz.get() && vviz.get() {
+        for (transform, light_source, visibility) in query_lights.iter() {
+            // Lights and occluders are culled by where they are, never by
+            // the view's frustum: one off screen still lights or shades it.
+            // A light past the coarse SDF lights nothing, so no march toward
+            // a light ever leaves it; one near its edge fades on the way out.
+            let fade = camera.map_or(1.0, |(_, ndc_from_world)| {
+                let ndc = (ndc_from_world * transform.translation().extend(1.0)).xy();
+                let edge = (ndc / COARSE_SDF_VIEW_SCALE).abs().max_element();
+                1.0 - smoothstep(COARSE_SDF_LIGHT_FADE, 1.0, edge)
+            });
+            if visibility.get() && fade > 0.0 {
                 light_sources.count += 1;
                 light_sources.data.push(GpuOmniLightSource::new(
                     OmniLightSource2D {
-                        intensity: light_source.intensity
-                            + rng.random_range(-1.0..1.0) * light_source.jitter_intensity,
+                        intensity: fade
+                            * (light_source.intensity
+                                + rng.random_range(-1.0..1.0) * light_source.jitter_intensity),
                         ..*light_source
                     },
                     Vec2::new(
@@ -137,30 +163,33 @@ pub fn system_extract_pipeline_assets(
     }
 
     // The SDF pass measures every texel against every occluder it is given,
-    // so it gets only those near the area the SDF covers. A farther one can
+    // so each SDF gets only those near the area it covers. A farther one can
     // only shorten march steps near the SDF's edge, never add or remove a hit
-    // (a march stops where it leaves the SDF); the margin keeps even that off.
-    // Then each row of touching tiles goes as one box (`occluder_merge`).
-    let sdf_area = query_camera.single().ok().map(|(camera, transform)| {
-        let view: Mat4 = transform.affine().into();
-        let world_from_ndc = view * camera.clip_from_view().inverse();
-        let corners = [Vec2::new(-1.0, -1.0), Vec2::new(1.0, -1.0), Vec2::new(-1.0, 1.0), Vec2::new(1.0, 1.0)]
-            .map(|c| (world_from_ndc * (c * SDF_VIEW_SCALE).extend(0.0).extend(1.0)).xy());
-        let area = Rect::from_corners(corners[0], corners[3]).union(Rect::from_corners(corners[1], corners[2]));
-        area.inflate(area.half_size().max_element() * SDF_CULL_MARGIN)
-    });
+    // (a march stops where it leaves the coarse SDF, and goes on in it where
+    // it leaves the fine one); the margin keeps even that off. Each row of
+    // touching tiles goes as one box (`occluder_merge`).
+    let sdf_area = |scale: f32| {
+        camera.map(|(world_from_ndc, _)| {
+            let corners = [Vec2::new(-1.0, -1.0), Vec2::new(1.0, -1.0), Vec2::new(-1.0, 1.0), Vec2::new(1.0, 1.0)]
+                .map(|c| (world_from_ndc * (c * scale).extend(0.0).extend(1.0)).xy());
+            let area = Rect::from_corners(corners[0], corners[3]).union(Rect::from_corners(corners[1], corners[2]));
+            area.inflate(area.half_size().max_element() * SDF_CULL_MARGIN)
+        })
+    };
+    let near_area = |area: Option<Rect>, center: Vec2, reach: f32| {
+        area.is_none_or(|area| (center - center.clamp(area.min, area.max)).length() <= reach)
+    };
+    let fine_area = sdf_area(SDF_VIEW_SCALE);
+    let coarse_area = sdf_area(COARSE_SDF_VIEW_SCALE);
 
     {
         let near: Vec<OccluderBox> = query_occluders
             .iter()
-            .filter(|(occluder, global_transform, hviz, vviz)| {
-                let center = global_transform.translation().xy();
-                let reach = occluder.h_size.length();
-                hviz.get()
-                    && vviz.get()
-                    && sdf_area.is_none_or(|area| (center - center.clamp(area.min, area.max)).length() <= reach)
+            .filter(|(occluder, global_transform, visibility)| {
+                visibility.get()
+                    && near_area(coarse_area, global_transform.translation().xy(), occluder.h_size.length())
             })
-            .filter_map(|(occluder, global_transform, _, _)| {
+            .filter_map(|(occluder, global_transform, _)| {
                 // A shape whose shader is not in the module yet casts
                 // nothing until it is.
                 let kind = match &occluder.sdf {
@@ -180,14 +209,14 @@ pub fn system_extract_pipeline_assets(
                 })
             })
             .collect();
-        let light_occluders = gpu_pipeline_assets.light_occluders.get_mut();
-        light_occluders.data.clear();
         let boxes = if res_light_settings.merge_occluder_rows {
             occluder_rows.merge(near).to_vec()
         } else {
             near
         };
-        light_occluders.data.extend(boxes.into_iter().map(|b| GpuLightOccluder2D {
+        let coarse_occluders = gpu_pipeline_assets.coarse_light_occluders.get_mut();
+        coarse_occluders.data.clear();
+        coarse_occluders.data.extend(boxes.iter().map(|b| GpuLightOccluder2D {
             center:   b.center,
             rotation: b.rotation.inverse().into(),
             h_extent: b.h_extent,
@@ -199,7 +228,16 @@ pub fn system_extract_pipeline_assets(
             lit_floor: b.lit_floor,
             lit_through: b.lit_through,
         }));
-        light_occluders.count = light_occluders.data.len() as u32;
+        coarse_occluders.count = coarse_occluders.data.len() as u32;
+        let fine: Vec<GpuLightOccluder2D> = boxes
+            .iter()
+            .zip(&coarse_occluders.data)
+            .filter(|(b, _)| near_area(fine_area, b.center, b.h_extent.length()))
+            .map(|(_, gpu)| gpu.clone())
+            .collect();
+        let light_occluders = gpu_pipeline_assets.light_occluders.get_mut();
+        light_occluders.count = fine.len() as u32;
+        light_occluders.data = fine;
     }
 
     {
@@ -244,6 +282,13 @@ pub fn system_extract_pipeline_assets(
             let world_extent = (ndc_top_right.xy() - ndc_bot_left.xy()).abs();
             camera_params.pixel_world_size = world_extent / camera_params.screen_size;
 
+            let coarse = GpuCameraParams {
+                sdf_scale:     Vec2::splat(COARSE_SDF_VIEW_SCALE),
+                inv_sdf_scale: Vec2::splat(1. / COARSE_SDF_VIEW_SCALE),
+                ..camera_params.clone()
+            };
+            *gpu_pipeline_assets.coarse_camera_params.get_mut() = coarse;
+
             let probes = gpu_pipeline_assets.probes.get_mut();
             probes.data[*gpu_frame_counter as usize].camera_pose =
                 camera_global_transform.translation().truncate();
@@ -283,4 +328,11 @@ pub fn system_extract_pipeline_assets(
     }
 
     *gpu_frame_counter = (*gpu_frame_counter + 1) % (GI_SCREEN_PROBE_SIZE * GI_SCREEN_PROBE_SIZE);
+}
+
+/// 0 at or below `edge0`, 1 at or above `edge1`, eased between, as WGSL's.
+fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32
+{
+    let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
 }

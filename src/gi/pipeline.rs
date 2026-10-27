@@ -41,12 +41,13 @@ pub struct GiTargetsWrapper
 #[derive(Clone)]
 pub struct GiTargets
 {
-    pub sdf_target:       Handle<Image>,
-    pub ss_probe_target:  Handle<Image>,
-    pub ss_bounce_target: Handle<Image>,
-    pub ss_blend_target:  Handle<Image>,
-    pub ss_filter_target: Handle<Image>,
-    pub ss_pose_target:   Handle<Image>,
+    pub sdf_target:        Handle<Image>,
+    pub coarse_sdf_target: Handle<Image>,
+    pub ss_probe_target:   Handle<Image>,
+    pub ss_bounce_target:  Handle<Image>,
+    pub ss_blend_target:   Handle<Image>,
+    pub ss_filter_target:  Handle<Image>,
+    pub ss_pose_target:    Handle<Image>,
 }
 
 impl GiTargets
@@ -55,6 +56,11 @@ impl GiTargets
     {
         let sdf_tex = create_texture_2d(
             sizes.sdf_target_usize.into(),
+            SDF_TARGET_FORMAT,
+            ImageFilterMode::Linear,
+        );
+        let coarse_sdf_tex = create_texture_2d(
+            sizes.coarse_sdf_target_usize.into(),
             SDF_TARGET_FORMAT,
             ImageFilterMode::Linear,
         );
@@ -85,6 +91,7 @@ impl GiTargets
         );
 
         let sdf_target = uuid_handle!("00000000-0000-0000-212d-fedea82bb2d7");
+        let coarse_sdf_target = uuid_handle!("00000000-0000-0000-5b3e-0c41d9a7f2c6");
         let ss_probe_target = uuid_handle!("00000000-0000-0000-2f81-c2ac3e832cda");
         let ss_bounce_target = uuid_handle!("00000000-0000-0000-2c62-8c87580fa5a7");
         let ss_blend_target = uuid_handle!("00000000-0000-0000-6c00-54342dfbf209");
@@ -93,6 +100,9 @@ impl GiTargets
 
         images
             .insert(sdf_target.id(), sdf_tex)
+            .expect("failed to insert image");
+        images
+            .insert(coarse_sdf_target.id(), coarse_sdf_tex)
             .expect("failed to insert image");
         images
             .insert(ss_probe_target.id(), ss_probe_tex)
@@ -112,6 +122,7 @@ impl GiTargets
 
         Self {
             sdf_target,
+            coarse_sdf_target,
             ss_probe_target,
             ss_bounce_target,
             ss_blend_target,
@@ -125,11 +136,12 @@ impl GiTargets
 #[derive(Resource)]
 pub struct LightPassPipelineBindGroups
 {
-    pub sdf_bind_group:       BindGroup,
-    pub ss_blend_bind_group:  BindGroup,
-    pub ss_probe_bind_group:  BindGroup,
-    pub ss_bounce_bind_group: BindGroup,
-    pub ss_filter_bind_group: BindGroup,
+    pub sdf_bind_group:        BindGroup,
+    pub coarse_sdf_bind_group: BindGroup,
+    pub ss_blend_bind_group:   BindGroup,
+    pub ss_probe_bind_group:   BindGroup,
+    pub ss_bounce_bind_group:  BindGroup,
+    pub ss_filter_bind_group:  BindGroup,
 }
 
 #[rustfmt::skip]
@@ -202,14 +214,18 @@ pub fn system_queue_bind_groups(
 {
     let light_sources_binding = gi_compute_assets.light_sources.binding();
     let light_occluders_binding = gi_compute_assets.light_occluders.binding();
+    let coarse_light_occluders_binding = gi_compute_assets.coarse_light_occluders.binding();
     let camera_params_binding = gi_compute_assets.camera_params.binding();
+    let coarse_camera_params_binding = gi_compute_assets.coarse_camera_params.binding();
     let gi_state_binding = gi_compute_assets.light_pass_params.binding();
     let probes_binding = gi_compute_assets.probes.binding();
     let skylight_masks_binding = gi_compute_assets.skylight_masks.binding();
 
     if light_sources_binding.is_none()
         || light_occluders_binding.is_none()
+        || coarse_light_occluders_binding.is_none()
         || camera_params_binding.is_none()
+        || coarse_camera_params_binding.is_none()
         || gi_state_binding.is_none()
         || probes_binding.is_none()
         || skylight_masks_binding.is_none()
@@ -221,14 +237,18 @@ pub fn system_queue_bind_groups(
     if let (
         Some(light_sources),
         Some(light_occluders),
+        Some(coarse_light_occluders),
         Some(camera_params),
+        Some(coarse_camera_params),
         Some(gi_state),
         Some(probes),
         Some(skylight_masks),
     ) = (
         light_sources_binding,
         light_occluders_binding,
+        coarse_light_occluders_binding,
         camera_params_binding,
+        coarse_camera_params_binding,
         gi_state_binding,
         probes_binding,
         skylight_masks_binding,
@@ -242,6 +262,7 @@ pub fn system_queue_bind_groups(
         // Return without creating bind groups — the render node will skip this frame.
         let (
             Some(sdf_view_image),
+            Some(coarse_sdf_image),
             Some(ss_probe_image),
             Some(ss_bounce_image),
             Some(ss_blend_image),
@@ -249,6 +270,7 @@ pub fn system_queue_bind_groups(
             Some(ss_pose_image),
         ) = (
             gpu_images.get(&targets.sdf_target),
+            gpu_images.get(&targets.coarse_sdf_target),
             gpu_images.get(&targets.ss_probe_target),
             gpu_images.get(&targets.ss_bounce_target),
             gpu_images.get(&targets.ss_blend_target),
@@ -290,6 +312,28 @@ pub fn system_queue_bind_groups(
             ],
         );
 
+        // The same pass over a larger area at a lower resolution: its own
+        // camera, whose `sdf_scale` is the coarse one, and the occluders near
+        // that area.
+        let coarse_sdf_bind_group = render_device.create_bind_group(
+            "gi_coarse_sdf_bind_group",
+            &sdf_layout,
+            &[
+                BindGroupEntry {
+                    binding:  0,
+                    resource: coarse_camera_params.clone(),
+                },
+                BindGroupEntry {
+                    binding:  1,
+                    resource: coarse_light_occluders.clone(),
+                },
+                BindGroupEntry {
+                    binding:  2,
+                    resource: BindingResource::TextureView(&coarse_sdf_image.texture_view),
+                },
+            ],
+        );
+
         let ss_probe_bind_group = render_device.create_bind_group(
             "gi_ss_probe_bind_group",
             &ss_probe_layout,
@@ -325,6 +369,14 @@ pub fn system_queue_bind_groups(
                 BindGroupEntry {
                     binding:  7,
                     resource: BindingResource::TextureView(&ss_probe_image.texture_view),
+                },
+                BindGroupEntry {
+                    binding:  8,
+                    resource: coarse_camera_params.clone(),
+                },
+                BindGroupEntry {
+                    binding:  9,
+                    resource: BindingResource::TextureView(&coarse_sdf_image.texture_view),
                 },
             ],
         );
@@ -436,6 +488,7 @@ pub fn system_queue_bind_groups(
 
         commands.insert_resource(LightPassPipelineBindGroups {
             sdf_bind_group,
+            coarse_sdf_bind_group,
             ss_probe_bind_group,
             ss_bounce_bind_group,
             ss_blend_bind_group,
@@ -571,6 +624,28 @@ impl FromWorld for LightPassPipeline
                         access:         StorageTextureAccess::WriteOnly,
                         format:         SS_PROBE_TARGET_FORMAT,
                         view_dimension: TextureViewDimension::D2,
+                    },
+                    count:      None,
+                },
+                // Coarse SDF camera.
+                BindGroupLayoutEntry {
+                    binding:    8,
+                    visibility: ShaderStages::COMPUTE,
+                    ty:         BindingType::Buffer {
+                        ty:                 BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size:   Some(GpuCameraParams::min_size()),
+                    },
+                    count:      None,
+                },
+                // Coarse SDF.
+                BindGroupLayoutEntry {
+                    binding:    9,
+                    visibility: ShaderStages::COMPUTE,
+                    ty:         BindingType::Texture {
+                        sample_type:    TextureSampleType::Float { filterable: true },
+                        view_dimension: TextureViewDimension::D2,
+                        multisampled:   false,
                     },
                     count:      None,
                 },

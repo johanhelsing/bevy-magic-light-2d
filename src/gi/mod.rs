@@ -202,6 +202,7 @@ fn light_pass_2d(world: &World, mut render_context: RenderContext) {
                 pipeline_cache.get_compute_pipeline(pipeline.ss_filter_pipeline),
             ) {
                 let sdf_grid = target_sizes.sdf_target_usize / WORKGROUP_SIZE;
+                let coarse_sdf_grid = target_sizes.coarse_sdf_target_usize / WORKGROUP_SIZE;
                 let probe_grid = target_sizes.probe_grid_usize / WORKGROUP_SIZE;
                 let filter_grid = util::align_to_work_group_grid(target_sizes.primary_target_isize).as_uvec2() / WORKGROUP_SIZE;
 
@@ -209,6 +210,7 @@ fn light_pass_2d(world: &World, mut render_context: RenderContext) {
                 // `render/gi_*/elapsed_gpu`) reads what each stage costs.
                 let stages = [
                     ("gi_sdf", sdf_pipeline, &pipeline_bind_groups.sdf_bind_group, sdf_grid),
+                    ("gi_sdf_coarse", sdf_pipeline, &pipeline_bind_groups.coarse_sdf_bind_group, coarse_sdf_grid),
                     ("gi_ss_probe", ss_probe_pipeline, &pipeline_bind_groups.ss_probe_bind_group, probe_grid),
                     ("gi_ss_bounce", ss_bounce_pipeline, &pipeline_bind_groups.ss_bounce_bind_group, probe_grid),
                     ("gi_ss_blend", ss_blend_pipeline, &pipeline_bind_groups.ss_blend_bind_group, probe_grid),

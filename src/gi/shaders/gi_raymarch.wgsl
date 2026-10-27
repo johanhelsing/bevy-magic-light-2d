@@ -224,7 +224,9 @@ fn raymarch_primary(
 // The march from a probe toward a light: on the fine SDF while it lasts,
 // then on the coarse one, which covers more of the world at a lower
 // resolution. A wall thinner than a coarse texel can sample above zero
-// there, so a coarse sample blocks within half a texel of a surface. The
+// there, so a coarse sample blocks within half a texel of a surface, and a
+// march that close to its light has arrived: a lamp a hand's width from a
+// wall would otherwise go dark as its march moved into the coarse SDF. The
 // fine SDF hands over a texel inside its edge, where a bilinear sample
 // still reads only its own texels, not the zero border past them. The
 // extraction drops a light past the coarse SDF, so a march leaving it
@@ -243,6 +245,7 @@ fn raymarch_light(
 
     let ray_direction = normalize(in_ray_target - in_ray_origin);
     let stop_at       = distance_squared(in_ray_origin, in_ray_target);
+    let reach         = sqrt(stop_at);
     let min_sdf       = min_march_sdf(camera_params);
     let coarse_texel  = camera_params.pixel_world_size.x * camera_params.screen_size.x
                       * coarse_params.sdf_scale.x / f32(textureDimensions(coarse_sdf).x);
@@ -272,6 +275,9 @@ fn raymarch_light(
             let coarse_uv = world_to_sdf_uv(h, coarse_params.view_proj, coarse_params.inv_sdf_scale);
             if any(coarse_uv < vec2<f32>(0.0)) || any(coarse_uv > vec2<f32>(1.0)) {
                 return RayMarchResult(0, i, h_prev);
+            }
+            if reach - ray_progress <= coarse_min_sdf {
+                return RayMarchResult(1, i, h);
             }
             scene_dist = bilinear_sample_r(coarse_sdf, sdf_sampler, coarse_uv);
             blocked_at = coarse_min_sdf;

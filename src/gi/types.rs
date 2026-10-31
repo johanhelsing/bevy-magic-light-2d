@@ -77,7 +77,7 @@ pub struct LightOccluder2D {
     #[reflect(default)]
     #[cfg_attr(feature = "serde", serde(default))]
     pub radius: f32,
-    /// A shape of the app's own instead of the rounded box: a shader module
+    /// A shape of the app's own instead of the rounded box: a WESL shader
     /// with `fn sdf(p: vec2<f32>, a: vec4<f32>, b: vec4<f32>) -> f32`, the
     /// signed distance at `p` meters from the center in the occluder's
     /// frame, `params` as `a` and `b`. Exact inside a disc of `h_size.x`

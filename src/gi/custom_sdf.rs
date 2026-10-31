@@ -12,41 +12,57 @@
 //! a number each got here. The module is one asset, rewritten in place when
 //! the set changes, so the pass recompiles by the ordinary shader reload and
 //! the app never names a kind.
+//!
+//! A shape shader is WESL. One loaded from a file is a module at its asset
+//! path, and WESL names an asset path only from another asset path: inside
+//! an embedded shader `package::` means the crate. So the composed module
+//! and the pass's shader both live at asset paths under
+//! `bevy_magic_light_2d/`, the pass's by [`home_sdf_pass`].
 
 use std::collections::HashSet;
 
 use bevy::prelude::*;
-use bevy::shader::ShaderImport;
+use bevy::shader::{ShaderImport, Source};
 
 use crate::gi::types::LightOccluder2D;
 use crate::prelude::BevyMagicLight2DSettings;
 
-/// The import path of the composed module.
-pub const MODULE_PATH: &str = "bevy_magic_light_2d::custom_sdf";
+/// The import path of the composed module, from a shader at an asset path.
+pub const MODULE_PATH: &str = "package::bevy_magic_light_2d::custom_sdf";
+
+/// The composed module's asset path, which [`MODULE_PATH`] names.
+const MODULE_ASSET_PATH: &str = "bevy_magic_light_2d/custom_sdf.wesl";
+
+/// The asset path the SDF pass's shader is homed at, so it can import
+/// [`MODULE_PATH`].
+const PASS_IMPORT_PATH: &str = "/bevy_magic_light_2d/gi_sdf";
 
 /// The composed module and the number each shape shader has in it.
 #[derive(Resource)]
 pub struct CustomSdfs
 {
     module:     Handle<Shader>,
-    /// The module's shapes in kind order, from 1: each shader's import path
+    /// The module's shapes in kind order, from 1: each shader's module path
     /// and id. Only grows unless the settings say to forget unused ones.
     entries:    Vec<(String, AssetId<Shader>)>,
     /// Shaders an app registered ahead of any occluder, so the module holds
     /// them from the start and a shape's first appearance recompiles
     /// nothing. Strong handles, so the assets stay loaded.
     registered: Vec<Handle<Shader>>,
+    /// The SDF pass's shader, loaded from the crate.
+    pass:       Handle<Shader>,
 }
 
 impl CustomSdfs
 {
-    pub(crate) fn new(shaders: &mut Assets<Shader>) -> Self
+    pub(crate) fn new(shaders: &mut Assets<Shader>, pass: Handle<Shader>) -> Self
     {
         let module = shaders.add(module_shader(&[]));
         Self {
             module,
             entries: Vec::new(),
             registered: Vec::new(),
+            pass,
         }
     }
 
@@ -92,15 +108,15 @@ impl OccluderShaderAppExt for App
 
 fn module_shader(imports: &[String]) -> Shader
 {
-    Shader::from_wgsl(compose(imports), format!("{MODULE_PATH}.wgsl"))
+    Shader::from_wesl(compose(imports), MODULE_ASSET_PATH)
 }
 
 /// The module's source: one import and one arm per shape shader.
 fn compose(imports: &[String]) -> String
 {
-    let mut source = format!("#define_import_path {MODULE_PATH}\n");
+    let mut source = String::new();
     for (i, path) in imports.iter().enumerate() {
-        source += &format!("#import {path} as sdf_{}\n", i + 1);
+        source += &format!("import {path} as sdf_{};\n", i + 1);
     }
     source += "\nfn custom_sdf(p: vec2<f32>, kind: u32, a: vec4<f32>, b: vec4<f32>) -> f32 {\n";
     source += "    switch kind {\n";
@@ -111,9 +127,44 @@ fn compose(imports: &[String]) -> String
     source
 }
 
+/// How a module at an asset path imports `shader`: by its own name when it
+/// has one, else by its asset path, `package::shapes::rock` for
+/// `shapes/rock.wesl`. `None` for a shader that is not WESL, which nothing
+/// can import.
+fn module_path(shader: &Shader) -> Option<String>
+{
+    if !matches!(shader.source, Source::Wesl(_)) {
+        return None;
+    }
+    Some(match &shader.import_path {
+        ShaderImport::Custom(name) => name.clone(),
+        ShaderImport::AssetPath(path) => std::iter::once("package")
+            .chain(path.split('/').filter(|c| !c.is_empty()))
+            .collect::<Vec<_>>()
+            .join("::"),
+    })
+}
+
+/// Moves the SDF pass's shader to [`PASS_IMPORT_PATH`] each time it loads
+/// or reloads. Runs before the frame's asset events go out, so the render
+/// world only ever sees it there.
+pub(crate) fn home_sdf_pass(sdfs: Res<CustomSdfs>, mut shaders: ResMut<Assets<Shader>>)
+{
+    let wanted = ShaderImport::AssetPath(PASS_IMPORT_PATH.into());
+    let Some(pass) = shaders.get(&sdfs.pass) else {
+        return;
+    };
+    if pass.import_path == wanted {
+        return;
+    }
+    if let Some(pass) = shaders.get_mut_untracked(&sdfs.pass) {
+        pass.import_path = wanted;
+    }
+}
+
 /// Recomposes the module when a shape shader joins: one an occluder in the
-/// world names, or one registered, as soon as it is loaded. A shader without
-/// a `#define_import_path` is left out with a warning. A shader leaves only
+/// world names, or one registered, as soon as it is loaded. A shader that is
+/// not WESL is left out with a warning. A shader leaves only
 /// when the settings say to forget unused ones and no occluder names it.
 pub(crate) fn compose_custom_sdfs(
     occluders: Query<&LightOccluder2D>,
@@ -156,9 +207,12 @@ pub(crate) fn compose_custom_sdfs(
         let Some(shader) = shaders.get(id) else {
             continue;
         };
-        match &shader.import_path {
-            ShaderImport::Custom(path) => entries.push((path.clone(), id)),
-            _ => warn!("occluder shader {id:?} has no #define_import_path; it casts nothing"),
+        match module_path(shader) {
+            Some(path) => entries.push((path, id)),
+            None => log::warn!(
+                "occluder shader `{}` is not WESL, so it casts nothing; rename it to .wesl",
+                shader.path
+            ),
         }
     }
     if entries == sdfs.entries {
@@ -168,7 +222,7 @@ pub(crate) fn compose_custom_sdfs(
     sdfs.entries = entries;
     let module = sdfs.module.id();
     if let Err(err) = shaders.insert(module, module_shader(&imports)) {
-        warn!("the custom occluder module could not be rewritten: {err}");
+        log::warn!("the custom occluder module could not be rewritten: {err}");
     }
 }
 
@@ -180,20 +234,33 @@ mod tests
     #[test]
     fn the_module_imports_each_shape_and_dispatches_on_its_number()
     {
-        let source = compose(&["game::rock".to_string(), "game::star".to_string()]);
-        assert!(source.starts_with("#define_import_path bevy_magic_light_2d::custom_sdf\n"));
-        assert!(source.contains("#import game::rock as sdf_1\n"));
-        assert!(source.contains("#import game::star as sdf_2\n"));
+        let source = compose(&["package::rock".to_string(), "game::star".to_string()]);
+        assert!(source.contains("import package::rock as sdf_1;\n"));
+        assert!(source.contains("import game::star as sdf_2;\n"));
         assert!(source.contains("case 1u: { return sdf_1::sdf(p, a, b); }"));
         assert!(source.contains("case 2u: { return sdf_2::sdf(p, a, b); }"));
         assert!(source.contains("default: { return 1e10; }"));
     }
 
     #[test]
+    fn a_shape_is_named_by_its_module_or_its_asset_path()
+    {
+        let named = Shader {
+            import_path: ShaderImport::Custom("game::star".into()),
+            ..Shader::from_wesl("", "star.wesl")
+        };
+        assert_eq!(module_path(&named).as_deref(), Some("game::star"));
+        let loaded = Shader::from_wesl("", "shapes/rock.wesl");
+        assert_eq!(module_path(&loaded).as_deref(), Some("package::shapes::rock"));
+        let plain = Shader::from_wgsl("", "shapes/rock.wgsl");
+        assert_eq!(module_path(&plain), None);
+    }
+
+    #[test]
     fn an_empty_module_still_defines_the_function()
     {
         let source = compose(&[]);
-        assert!(!source.contains("#import"));
+        assert!(!source.contains("import"));
         assert!(source
             .contains("fn custom_sdf(p: vec2<f32>, kind: u32, a: vec4<f32>, b: vec4<f32>) -> f32"));
     }

@@ -1,4 +1,4 @@
-use bevy::asset::embedded_asset;
+use bevy::asset::{embedded_asset, AssetEventSystems};
 use bevy::prelude::*;
 use bevy::render::diagnostic::RecordDiagnostics;
 use bevy::render::extract_resource::ExtractResourcePlugin;
@@ -12,7 +12,7 @@ use bevy::window::{PrimaryWindow, WindowResized};
 use self::pipeline::GiTargets;
 use crate::gi::compositing::{setup_post_processing_camera, CameraTargets, PostProcessingMaterial};
 use crate::gi::constants::*;
-use crate::gi::custom_sdf::{compose_custom_sdfs, CustomSdfs};
+use crate::gi::custom_sdf::{compose_custom_sdfs, home_sdf_pass, CustomSdfs};
 use crate::gi::pipeline::{
     system_queue_bind_groups,
     system_setup_gi_pipeline,
@@ -21,6 +21,7 @@ use crate::gi::pipeline::{
     LightPassPipelineBindGroups,
 };
 use crate::gi::pipeline_assets::{
+    load_embedded_shader,
     system_extract_pipeline_assets,
     system_load_embedded_shader_dependencies,
     system_prepare_pipeline_assets,
@@ -71,25 +72,29 @@ impl Plugin for BevyMagicLight2DPlugin
                 .chain(),
         )
         .add_systems(PreUpdate, handle_window_resize)
-        .add_systems(PostUpdate, compose_custom_sdfs);
-        let sdfs = CustomSdfs::new(&mut app.world_mut().resource_mut::<Assets<Shader>>());
-        app.insert_resource(sdfs);
+        .add_systems(
+            PostUpdate,
+            (compose_custom_sdfs, home_sdf_pass.before(AssetEventSystems)),
+        );
 
-        // Library shaders (imported by other shaders, need #define_import_path)
+        // Library shaders, imported by the others at their embedded paths
         // Use load_shader_library! for synchronous loading to avoid race conditions
-        load_shader_library!(app, "shaders/gi_attenuation.wgsl");
-        load_shader_library!(app, "shaders/gi_camera.wgsl");
-        load_shader_library!(app, "shaders/gi_halton.wgsl");
-        load_shader_library!(app, "shaders/gi_math.wgsl");
-        load_shader_library!(app, "shaders/gi_raymarch.wgsl");
-        load_shader_library!(app, "shaders/gi_types.wgsl");
+        load_shader_library!(app, "shaders/gi_attenuation.wesl");
+        load_shader_library!(app, "shaders/gi_camera.wesl");
+        load_shader_library!(app, "shaders/gi_halton.wesl");
+        load_shader_library!(app, "shaders/gi_math.wesl");
+        load_shader_library!(app, "shaders/gi_raymarch.wesl");
+        load_shader_library!(app, "shaders/gi_types.wesl");
         // Pipeline shaders (loaded as assets, referenced by handle)
-        embedded_asset!(app, "shaders/gi_post_processing.wgsl");
-        embedded_asset!(app, "shaders/gi_sdf.wgsl");
-        embedded_asset!(app, "shaders/gi_ss_blend.wgsl");
-        embedded_asset!(app, "shaders/gi_ss_bounce.wgsl");
-        embedded_asset!(app, "shaders/gi_ss_filter.wgsl");
-        embedded_asset!(app, "shaders/gi_ss_probe.wgsl");
+        embedded_asset!(app, "shaders/gi_post_processing.wesl");
+        embedded_asset!(app, "shaders/gi_sdf.wesl");
+        embedded_asset!(app, "shaders/gi_ss_blend.wesl");
+        embedded_asset!(app, "shaders/gi_ss_bounce.wesl");
+        embedded_asset!(app, "shaders/gi_ss_filter.wesl");
+        embedded_asset!(app, "shaders/gi_ss_probe.wesl");
+        let pass = load_embedded_shader(app.world().resource::<AssetServer>(), "gi_sdf.wesl");
+        let sdfs = CustomSdfs::new(&mut app.world_mut().resource_mut::<Assets<Shader>>(), pass);
+        app.insert_resource(sdfs);
 
         let render_app = app.sub_app_mut(RenderApp);
         render_app
@@ -153,7 +158,7 @@ pub fn handle_window_resize(
 
         assets_mesh.insert(
             POST_PROCESSING_RECT.id(),
-            Mesh::from(bevy::math::primitives::Rectangle::new(
+            Mesh::from(Rectangle::new(
                 res_target_sizes.primary_target_size.x,
                 res_target_sizes.primary_target_size.y,
             )),

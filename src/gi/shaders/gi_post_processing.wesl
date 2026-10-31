@@ -1,18 +1,18 @@
-#import bevy_sprite::mesh2d_view_bindings::view
-#import bevy_sprite::mesh2d_vertex_output::VertexOutput
+import bevy_sprite_render::mesh2d::view_bindings::view;
+import bevy_sprite_render::mesh2d::vertex_output::VertexOutput;
 
 fn coords_to_viewport_uv(position: vec2<f32>, viewport: vec4<f32>) -> vec2<f32> {
     return (position - viewport.xy) / viewport.zw;
 }
 
-@group(#{MATERIAL_BIND_GROUP}) @binding(0) var in_floor_texture:              texture_2d<f32>;
-@group(#{MATERIAL_BIND_GROUP}) @binding(1) var in_floor_sampler:              sampler;
-@group(#{MATERIAL_BIND_GROUP}) @binding(2) var in_walls_texture:              texture_2d<f32>;
-@group(#{MATERIAL_BIND_GROUP}) @binding(3) var in_walls_sampler:              sampler;
-@group(#{MATERIAL_BIND_GROUP}) @binding(4) var in_objects_texture:            texture_2d<f32>;
-@group(#{MATERIAL_BIND_GROUP}) @binding(5) var in_objects_sampler:            sampler;
-@group(#{MATERIAL_BIND_GROUP}) @binding(6) var in_irradiance_texture:         texture_2d<f32>;
-@group(#{MATERIAL_BIND_GROUP}) @binding(7) var in_irradiance_texture_sampler: sampler;
+@group(constants::MATERIAL_BIND_GROUP) @binding(0) var in_floor_texture:              texture_2d<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(1) var in_floor_sampler:              sampler;
+@group(constants::MATERIAL_BIND_GROUP) @binding(2) var in_walls_texture:              texture_2d<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(3) var in_walls_sampler:              sampler;
+@group(constants::MATERIAL_BIND_GROUP) @binding(4) var in_objects_texture:            texture_2d<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(5) var in_objects_sampler:            sampler;
+@group(constants::MATERIAL_BIND_GROUP) @binding(6) var in_irradiance_texture:         texture_2d<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(7) var in_irradiance_texture_sampler: sampler;
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {

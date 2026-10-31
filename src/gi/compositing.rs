@@ -19,7 +19,7 @@ use bevy::render::render_resource::{
     TextureUsages,
 };
 use bevy::shader::ShaderRef;
-use bevy::sprite_render::{Material2d, Material2dKey};
+use bevy::sprite_render::{Material2d, Material2dKey, Material2dPipeline};
 
 use crate::gi::constants::{POST_PROCESSING_MATERIAL, POST_PROCESSING_RECT};
 use crate::gi::pipeline::GiTargetsWrapper;
@@ -166,10 +166,11 @@ impl Material2d for PostProcessingMaterial
 {
     fn fragment_shader() -> ShaderRef
     {
-        "embedded://bevy_magic_light_2d/gi/shaders/gi_post_processing.wgsl".into()
+        "embedded://bevy_magic_light_2d/gi/shaders/gi_post_processing.wesl".into()
     }
 
     fn specialize(
+        _pipeline: &Material2dPipeline,
         descriptor: &mut RenderPipelineDescriptor,
         _layout: &MeshVertexBufferLayoutRef,
         _key: Material2dKey<Self>,
@@ -212,7 +213,7 @@ pub fn setup_post_processing_camera(
     gi_targets_wrapper:           Res<GiTargetsWrapper>,
 ) {
 
-    let quad =  Mesh::from(bevy::math::primitives::Rectangle::new(
+    let quad =  Mesh::from(Rectangle::new(
         target_sizes.primary_target_size.x,
         target_sizes.primary_target_size.y,
     ));

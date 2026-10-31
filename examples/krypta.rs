@@ -323,7 +323,7 @@ fn setup(
                             ),
                         ))
                         .insert(RenderLayers::from_layers(CAMERA_LAYER_WALLS))
-                        .insert(occluder_data)
+                        .insert(occluder_data.clone())
                         .id(),
                 );
             }
@@ -744,6 +744,7 @@ fn setup(
                 color:              Color::srgb_u8(0, 206, 94),
                 jitter_intensity:   9.04,
                 jitter_translation: 3.0,
+                ..default()
             },
         ));
 
@@ -758,6 +759,7 @@ fn setup(
                 color:              Color::srgb_u8(0, 206, 94),
                 jitter_intensity:   9.04,
                 jitter_translation: 3.0,
+                ..default()
             },
         ));
     }

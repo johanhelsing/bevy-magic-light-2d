@@ -1,5 +1,3 @@
-#define_import_path bevy_magic_light_2d::gi_halton
-
  fn radical_inverse_vdc(n: i32) -> f32 {
     var bits = u32(n);
     bits = (bits << 16u) | (bits >> 16u);

@@ -1,9 +1,8 @@
-#import bevy_magic_light_2d::gi_types::LightPassParams
-#import bevy_magic_light_2d::gi_math::fast_normalize_2d
-#import bevy_magic_light_2d::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, bilinear_sample_r, sdf_interior, screen_to_world, world_to_screen, world_to_ndc, probe_jitter_offset_world}
-#import bevy_magic_light_2d::gi_halton::radical_inverse_vdc
-#import bevy_magic_light_2d::gi_attenuation
-#import bevy_magic_light_2d::gi_raymarch::{raymarch_bounce, lit_from, interior_fade}
+import super::gi_types::LightPassParams;
+import super::gi_math::fast_normalize_2d;
+import super::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, bilinear_sample_r, sdf_interior, screen_to_world, world_to_screen, world_to_ndc, probe_jitter_offset_world};
+import super::gi_halton::radical_inverse_vdc;
+import super::gi_raymarch::{raymarch_bounce, lit_from, interior_fade};
 
 @group(0) @binding(0) var<uniform> camera_params:     CameraParams;
 @group(0) @binding(1) var<uniform> cfg:               LightPassParams;

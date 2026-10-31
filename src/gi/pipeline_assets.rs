@@ -6,7 +6,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{StorageBuffer, UniformBuffer};
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::Extract;
-use rand::Rng;
+use rand::RngExt;
 
 use crate::gi::constants::{GI_SCREEN_PROBE_SIZE, SDF_CULL_MARGIN, SDF_VIEW_SCALE};
 use crate::gi::custom_sdf::CustomSdfs;
@@ -38,13 +38,13 @@ pub(crate) fn system_load_embedded_shader_dependencies(
     mut embedded_shader_deps: ResMut<EmbeddedShaderDependencies>,
     asset_server: Res<AssetServer>,
 ) {
-    embedded_shader_deps.loaded_shaders.push(load_embedded_shader(&asset_server, "gi_attenuation.wgsl"));
-    embedded_shader_deps.loaded_shaders.push(load_embedded_shader(&asset_server, "gi_camera.wgsl"));
-    embedded_shader_deps.loaded_shaders.push(load_embedded_shader(&asset_server, "gi_halton.wgsl"));
-    embedded_shader_deps.loaded_shaders.push(load_embedded_shader(&asset_server, "gi_math.wgsl"));
-    embedded_shader_deps.loaded_shaders.push(load_embedded_shader(&asset_server, "gi_post_processing.wgsl"));
-    embedded_shader_deps.loaded_shaders.push(load_embedded_shader(&asset_server, "gi_raymarch.wgsl"));
-    embedded_shader_deps.loaded_shaders.push(load_embedded_shader(&asset_server, "gi_types.wgsl"));
+    embedded_shader_deps.loaded_shaders.push(load_embedded_shader(&asset_server, "gi_attenuation.wesl"));
+    embedded_shader_deps.loaded_shaders.push(load_embedded_shader(&asset_server, "gi_camera.wesl"));
+    embedded_shader_deps.loaded_shaders.push(load_embedded_shader(&asset_server, "gi_halton.wesl"));
+    embedded_shader_deps.loaded_shaders.push(load_embedded_shader(&asset_server, "gi_math.wesl"));
+    embedded_shader_deps.loaded_shaders.push(load_embedded_shader(&asset_server, "gi_post_processing.wesl"));
+    embedded_shader_deps.loaded_shaders.push(load_embedded_shader(&asset_server, "gi_raymarch.wesl"));
+    embedded_shader_deps.loaded_shaders.push(load_embedded_shader(&asset_server, "gi_types.wesl"));
 }
 
 pub(crate) fn load_embedded_shader(asset_server: &AssetServer, shader_file: &str)

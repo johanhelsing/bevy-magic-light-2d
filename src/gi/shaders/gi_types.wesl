@@ -1,5 +1,3 @@
-#define_import_path bevy_magic_light_2d::gi_types
-
 struct LightSource {
     center:         vec2<f32>,
     intensity:      f32,

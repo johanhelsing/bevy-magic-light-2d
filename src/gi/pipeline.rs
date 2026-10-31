@@ -5,6 +5,7 @@ use bevy::render::extract_resource::ExtractResource;
 use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
+use bevy::render::RenderApp;
 use bevy::render::texture::GpuImage;
 
 use crate::gi::pipeline_assets::{load_embedded_shader, LightPassPipelineAssets};
@@ -33,6 +34,7 @@ const SS_FILTER_PIPELINE_ENTRY: &str = "main";
 
 #[allow(dead_code)]
 #[derive(Clone, Resource, ExtractResource, Default)]
+#[extract_app(RenderApp)]
 pub struct GiTargetsWrapper
 {
     pub targets: Option<GiTargets>,
@@ -817,11 +819,11 @@ impl FromWorld for LightPassPipeline
         let (shader_sdf, gi_ss_probe, gi_ss_bounce, gi_ss_blend, gi_ss_filter) = {
             let assets_server = world.resource::<AssetServer>();
             (
-                load_embedded_shader(assets_server, "gi_sdf.wgsl"),
-                load_embedded_shader(assets_server, "gi_ss_probe.wgsl"),
-                load_embedded_shader(assets_server, "gi_ss_bounce.wgsl"),
-                load_embedded_shader(assets_server, "gi_ss_blend.wgsl"),
-                load_embedded_shader(assets_server, "gi_ss_filter.wgsl"),
+                load_embedded_shader(assets_server, "gi_sdf.wesl"),
+                load_embedded_shader(assets_server, "gi_ss_probe.wesl"),
+                load_embedded_shader(assets_server, "gi_ss_bounce.wesl"),
+                load_embedded_shader(assets_server, "gi_ss_blend.wesl"),
+                load_embedded_shader(assets_server, "gi_ss_filter.wesl"),
             )
         };
 
@@ -835,6 +837,7 @@ impl FromWorld for LightPassPipeline
             entry_point:                      Some(SDF_PIPELINE_ENTRY.into()),
             immediate_size:                   0,
             zero_initialize_workgroup_memory: false,
+            ..default()
         });
 
         let ss_probe_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
@@ -845,6 +848,7 @@ impl FromWorld for LightPassPipeline
             entry_point:                      Some(SS_PROBE_PIPELINE_ENTRY.into()),
             immediate_size:                   0,
             zero_initialize_workgroup_memory: false,
+            ..default()
         });
 
         let ss_bounce_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
@@ -855,6 +859,7 @@ impl FromWorld for LightPassPipeline
             entry_point:                      Some(SS_BOUNCE_PIPELINE_ENTRY.into()),
             immediate_size:                   0,
             zero_initialize_workgroup_memory: false,
+            ..default()
         });
 
         let ss_blend_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
@@ -865,6 +870,7 @@ impl FromWorld for LightPassPipeline
             entry_point:                      Some(SS_BLEND_PIPELINE_ENTRY.into()),
             immediate_size:                   0,
             zero_initialize_workgroup_memory: false,
+            ..default()
         });
 
         let ss_filter_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
@@ -875,6 +881,7 @@ impl FromWorld for LightPassPipeline
             entry_point:                      Some(SS_FILTER_PIPELINE_ENTRY.into()),
             immediate_size:                   0,
             zero_initialize_workgroup_memory: false,
+            ..default()
         });
 
         LightPassPipeline {

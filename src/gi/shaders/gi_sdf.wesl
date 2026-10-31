@@ -1,7 +1,10 @@
-#import bevy_magic_light_2d::gi_types::LightOccluderBuffer
-#import bevy_magic_light_2d::gi_math::quat_mul
-#import bevy_magic_light_2d::gi_camera::{CameraParams, sdf_uv_to_world}
-#import bevy_magic_light_2d::custom_sdf::custom_sdf
+// This shader runs from an asset path, not its embedded one, so it can
+// import the custom occluder module (`gi/custom_sdf.rs`): its imports name
+// the crate in full, and `package::` is the asset root.
+import bevy_magic_light_2d::gi::shaders::gi_types::LightOccluderBuffer;
+import bevy_magic_light_2d::gi::shaders::gi_math::quat_mul;
+import bevy_magic_light_2d::gi::shaders::gi_camera::{CameraParams, sdf_uv_to_world};
+import package::bevy_magic_light_2d::custom_sdf::custom_sdf;
 
 @group(0) @binding(0) var<uniform> camera_params:         CameraParams;
 @group(0) @binding(1) var<storage> light_occluder_buffer: LightOccluderBuffer;

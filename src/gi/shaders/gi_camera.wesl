@@ -1,5 +1,3 @@
-#define_import_path bevy_magic_light_2d::gi_camera
-
 struct CameraParams {
     screen_size:         vec2<f32>,
     screen_size_inv:     vec2<f32>,

@@ -9,14 +9,12 @@ use bevy::shader::load_shader_library;
 use bevy::sprite_render::Material2dPlugin;
 use bevy::window::{PrimaryWindow, WindowResized};
 
-use self::pipeline::GiTargets;
 use crate::gi::compositing::{setup_post_processing_camera, CameraTargets, PostProcessingMaterial};
 use crate::gi::constants::*;
 use crate::gi::custom_sdf::{compose_custom_sdfs, home_sdf_pass, CustomSdfs};
 use crate::gi::pipeline::{
     system_queue_bind_groups,
     system_setup_gi_pipeline,
-    GiTargetsWrapper,
     LightPassPipeline,
     LightPassPipelineBindGroups,
 };
@@ -33,6 +31,9 @@ use crate::prelude::BevyMagicLight2DSettings;
 
 mod constants;
 pub mod custom_sdf;
+/// The render targets the passes write, for an app that reads one of them:
+/// the SDF, to collide particles with what blocks light.
+pub use self::pipeline::{GiTargets, GiTargetsWrapper};
 mod occluder_merge;
 mod pipeline;
 mod pipeline_assets;

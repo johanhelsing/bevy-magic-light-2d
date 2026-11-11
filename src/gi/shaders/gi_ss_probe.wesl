@@ -1,18 +1,68 @@
-import super::gi_types::{LightPassParams, ProbeDataBuffer, SkylightMaskBuffer, LightSourceBuffer};
-import super::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, screen_to_world, world_to_ndc, ndc_to_screen, bilinear_sample_r, sdf_interior, sdf_through, probe_jitter_offset_world};
-import super::gi_attenuation::light_attenuation_r_two;
-import super::gi_halton::hammersley2d;
-import super::gi_raymarch::{raymarch_bounce, raymarch_primary, lit_from, interior_fade, exit_toward};
+// This shader runs from an asset path, not its embedded one, so it can
+// import the custom shape module (`gi/custom_sdf.rs`) for a sky shade's
+// shape: its imports name the crate in full, and `package::` is the asset
+// root.
+import bevy_magic_light_2d::gi::shaders::gi_types::{LightPassParams, ProbeDataBuffer, SkyShadeBuffer, LightSourceBuffer};
+import bevy_magic_light_2d::gi::shaders::gi_camera::{CameraParams, world_to_sdf_uv, bilinear_sample_rgba, screen_to_world, world_to_ndc, ndc_to_screen, bilinear_sample_r, sdf_interior, sdf_through, probe_jitter_offset_world};
+import bevy_magic_light_2d::gi::shaders::gi_attenuation::light_attenuation_r_two;
+import bevy_magic_light_2d::gi::shaders::gi_halton::hammersley2d;
+import bevy_magic_light_2d::gi::shaders::gi_math::quat_mul;
+import bevy_magic_light_2d::gi::shaders::gi_raymarch::{raymarch_bounce, raymarch_primary, lit_from, interior_fade, exit_toward};
+import package::bevy_magic_light_2d::custom_sdf::custom_sdf;
 
 @group(0) @binding(0) var<uniform> camera_params:         CameraParams;
 @group(0) @binding(1) var<uniform> cfg:                   LightPassParams;
 @group(0) @binding(2) var<storage> probes:                ProbeDataBuffer;
-@group(0) @binding(3) var<storage> skylight_masks_buffer: SkylightMaskBuffer;
+@group(0) @binding(3) var<storage> sky_shades_buffer:     SkyShadeBuffer;
 @group(0) @binding(4) var<storage> lights_source_buffer:  LightSourceBuffer;
 @group(0) @binding(5) var          sdf_in:                texture_2d<f32>;
 @group(0) @binding(6) var          sdf_in_sampler:        sampler;
 @group(0) @binding(7) var          ss_probe_out:          texture_storage_2d<rgba16float, write>;
 
+
+// How front-loaded a shade's fade is: the power in `shade_ramp`. Tuned by
+// eye on a planetoid's cave (2026-11-11), where the dark is the point and a
+// headlight is how you see: "inside" reads a meter or two past the mouth.
+const SHADE_BEND: f32 = 2.4;
+
+// How much of its strength a shade has `depth` meters in from its outline:
+// an ease-out, so most of the dark comes early and it settles into the full
+// strength at the fade with no crease. At a fade of 0 the edge is hard.
+fn shade_ramp(depth: f32, fade: f32) -> f32 {
+    if (fade <= 0.0) {
+        return 1.0;
+    }
+    let t = clamp(depth / fade, 0.0, 1.0);
+    return 1.0 - pow(1.0 - t, SHADE_BEND);
+}
+
+// The share of the skylight that reaches `p`: each shade takes its strength
+// deep inside, fading in from its outline over its fade, and the strongest
+// counts (`SkyShade2D`).
+fn sky_share(p: vec2<f32>) -> f32 {
+    var share = 1.0;
+    for (var i = 0u; i < sky_shades_buffer.count; i++) {
+        let shade = sky_shades_buffer.data[i];
+        let local = quat_mul(shade.rotation, vec3<f32>(p - shade.center, 0.0)).xy;
+        var d: f32;
+        if (shade.kind != 0u) {
+            // The shape lies inside its disc; outside it nothing is shaded,
+            // and the shape is not evaluated.
+            if (length(local) >= shade.h_extent.x) {
+                continue;
+            }
+            d = custom_sdf(local, shade.kind, shade.params_a, shade.params_b);
+        } else {
+            let q = abs(local) - (shade.h_extent - vec2<f32>(shade.radius));
+            d = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - shade.radius;
+        }
+        if (d >= 0.0) {
+            continue;
+        }
+        share = min(share, 1.0 - shade.strength * shade_ramp(-d, shade.fade));
+    }
+    return max(share, 0.0);
+}
 
 // The probe's tile of the screen-space cache for this frame.
 fn store_probe(tile_xy: vec2<i32>, frame_index: i32, halton_jitter: vec2<f32>, irradiance: vec3<f32>) {
@@ -51,21 +101,7 @@ fn main(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 
     let probe_ndc    = world_to_ndc(probe_center_world, camera_params.view_proj);
     let probe_screen = ndc_to_screen(probe_ndc, camera_params.screen_size);
-    var is_masked    = 1.0;
-
-    // Check if the probe is masked from skylight.
-    for (var i: i32 = 0; i < i32(skylight_masks_buffer.count); i++) {
-        let mask = skylight_masks_buffer.data[i];
-        if probe_center_world.x > mask.center.x - mask.h_extent.x &&
-           probe_center_world.x < mask.center.x + mask.h_extent.x &&
-           probe_center_world.y > mask.center.y - mask.h_extent.y &&
-           probe_center_world.y < mask.center.y + mask.h_extent.y {
-            is_masked = 0.0;
-            break;
-        }
-    }
-
-    let skylight = cfg.skylight_color * is_masked;
+    let skylight = cfg.skylight_color * sky_share(probe_center_world);
     var probe_irradiance = vec3<f32>(skylight);
 
     // A probe inside an occluder is lit by each light through the occluder

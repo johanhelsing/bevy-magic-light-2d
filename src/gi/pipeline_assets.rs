@@ -12,7 +12,7 @@ use crate::gi::constants::{GI_SCREEN_PROBE_SIZE, SDF_CULL_MARGIN, SDF_VIEW_SCALE
 use crate::gi::custom_sdf::CustomSdfs;
 use crate::gi::occluder_merge::{OccluderBox, RowMerger};
 use crate::gi::resource::ComputedTargetSizes;
-use crate::gi::types::{LightOccluder2D, OmniLightSource2D, SkylightLight2D, SkylightMask2D};
+use crate::gi::types::{LightOccluder2D, OmniLightSource2D, SkyShade2D, SkylightLight2D};
 use crate::gi::types_gpu::{
     GpuCameraParams,
     GpuLightOccluder2D,
@@ -21,8 +21,8 @@ use crate::gi::types_gpu::{
     GpuLightSourceBuffer,
     GpuOmniLightSource,
     GpuProbeDataBuffer,
-    GpuSkylightMaskBuffer,
-    GpuSkylightMaskData,
+    GpuSkyShade,
+    GpuSkyShadeBuffer,
 };
 use crate::prelude::BevyMagicLight2DSettings;
 use crate::FloorCamera;
@@ -63,7 +63,7 @@ pub struct LightPassPipelineAssets {
     pub light_sources:     StorageBuffer<GpuLightSourceBuffer>,
     pub light_occluders:   StorageBuffer<GpuLightOccluderBuffer>,
     pub probes:            StorageBuffer<GpuProbeDataBuffer>,
-    pub skylight_masks:    StorageBuffer<GpuSkylightMaskBuffer>,
+    pub sky_shades:        StorageBuffer<GpuSkyShadeBuffer>,
 }
 
 impl LightPassPipelineAssets
@@ -75,7 +75,7 @@ impl LightPassPipelineAssets
         self.camera_params.write_buffer(device, queue);
         self.light_pass_params.write_buffer(device, queue);
         self.probes.write_buffer(device, queue);
-        self.skylight_masks.write_buffer(device, queue);
+        self.sky_shades.write_buffer(device, queue);
     }
 }
 
@@ -99,7 +99,7 @@ pub fn system_extract_pipeline_assets(
     query_lights:               Extract<Query<(&GlobalTransform, &OmniLightSource2D, &InheritedVisibility, &ViewVisibility)>>,
     query_occluders:            Extract<Query<(&LightOccluder2D, &GlobalTransform, &InheritedVisibility, &ViewVisibility)>>,
     query_camera:               Extract<Query<(&Camera, &GlobalTransform), With<FloorCamera>>>,
-    query_masks:                Extract<Query<(&GlobalTransform, &SkylightMask2D)>>,
+    query_shades:               Extract<Query<(&GlobalTransform, &SkyShade2D, &InheritedVisibility)>>,
     query_skylight_light:       Extract<Query<&SkylightLight2D>>,
 
     mut gpu_target_sizes:       ResMut<ComputedTargetSizes>,
@@ -203,16 +203,37 @@ pub fn system_extract_pipeline_assets(
     }
 
     {
-        let skylight_masks = gpu_pipeline_assets.skylight_masks.get_mut();
-        skylight_masks.count = 0;
-        skylight_masks.data.clear();
-        for (transform, mask) in query_masks.iter() {
-            skylight_masks.count += 1;
-            skylight_masks.data.push(GpuSkylightMaskData::new(
-                transform.translation().truncate(),
-                mask.h_size,
-            ));
+        // Every shade, wherever it is: a probe on screen can be inside one
+        // whose center is far off it. A shape whose shader is not in the
+        // module yet shades nothing until it is.
+        let sky_shades = gpu_pipeline_assets.sky_shades.get_mut();
+        sky_shades.data.clear();
+        if res_light_settings.shade_sky {
+            for (transform, shade, hviz) in query_shades.iter() {
+                if !hviz.get() || shade.strength <= 0.0 {
+                    continue;
+                }
+                let kind = match &shade.sdf {
+                    None => 0,
+                    Some(shader) => match res_custom_sdfs.kind(shader) {
+                        Some(kind) => kind,
+                        None => continue,
+                    },
+                };
+                sky_shades.data.push(GpuSkyShade {
+                    center:   transform.translation().xy(),
+                    rotation: transform.rotation().inverse().into(),
+                    h_extent: shade.h_size,
+                    radius:   shade.radius,
+                    kind,
+                    params_a: Vec4::from_slice(&shade.params[..4]),
+                    params_b: Vec4::from_slice(&shade.params[4..]),
+                    strength: shade.strength.min(1.0),
+                    fade:     shade.fade.max(0.0),
+                });
+            }
         }
+        sky_shades.count = sky_shades.data.len() as u32;
     }
 
     {

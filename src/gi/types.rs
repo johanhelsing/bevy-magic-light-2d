@@ -157,13 +157,62 @@ impl From<Vec2> for LightOccluder2D
     }
 }
 
+/// An area that takes a share of the skylight away, and only the skylight:
+/// lights inside are as bright as anywhere. The share is `strength` deep
+/// inside, fading in from the outline over `fade`, so its edge is a dusk
+/// and not a line. Where shades overlap, the strongest counts. Each probe
+/// is shaded by where it is, not by where the camera is.
+///
+/// Its shape is an occluder's: a rounded box, or the app's own shape when
+/// `sdf` names one (`gi::custom_sdf`), the same shader an occluder can draw.
+/// Skipped while hidden, and while [`BevyMagicLight2DSettings::shade_sky`]
+/// is off.
+///
+/// [`BevyMagicLight2DSettings::shade_sky`]: crate::prelude::BevyMagicLight2DSettings::shade_sky
 #[rustfmt::skip]
-#[derive(Reflect, Component, Default, Clone, Copy)]
+#[derive(Reflect, Component, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[reflect(Component)]
+// Visibility brings the Inherited visibility the extraction reads, and
+// Transform the GlobalTransform.
+#[require(Visibility, Transform)]
+#[reflect(Component, Default)]
 #[cfg_attr(feature = "serde", reflect(Serialize, Deserialize))]
-pub struct SkylightMask2D {
-    pub h_size: Vec2,
+pub struct SkyShade2D {
+    /// Half the box. With an `sdf`, `h_size.x` is the radius of the disc
+    /// the shape lies in: nothing outside it is shaded.
+    pub h_size:   Vec2,
+    /// How far the box's corners are rounded, 0 for a box.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub radius:   f32,
+    /// A shape of the app's own instead of the box, as
+    /// [`LightOccluder2D::sdf`]: the signed distance at `p` meters from the
+    /// center in the shade's frame, `params` as `a` and `b`. Not saved.
+    #[reflect(default)]
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub sdf:      Option<Handle<Shader>>,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub params:   [f32; 8],
+    /// The share of the skylight taken away deep inside, 0 to 1.
+    pub strength: f32,
+    /// How far in from the outline the shade reaches its strength, meters.
+    /// Most of the dark comes early: a third of the way in, over 60 % of
+    /// the strength is there. 0 is a hard edge.
+    pub fade:     f32,
+}
+
+impl Default for SkyShade2D
+{
+    fn default() -> Self
+    {
+        Self {
+            h_size:   Vec2::ONE,
+            radius:   0.0,
+            sdf:      None,
+            params:   [0.0; 8],
+            strength: 1.0,
+            fade:     0.0,
+        }
+    }
 }
 
 #[rustfmt::skip]

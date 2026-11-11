@@ -93,8 +93,12 @@ impl Plugin for BevyMagicLight2DPlugin
         embedded_asset!(app, "shaders/gi_ss_bounce.wesl");
         embedded_asset!(app, "shaders/gi_ss_filter.wesl");
         embedded_asset!(app, "shaders/gi_ss_probe.wesl");
-        let pass = load_embedded_shader(app.world().resource::<AssetServer>(), "gi_sdf.wesl");
-        let sdfs = CustomSdfs::new(&mut app.world_mut().resource_mut::<Assets<Shader>>(), pass);
+        let passes = ["gi_sdf.wesl", "gi_ss_probe.wesl"]
+            .map(|pass| load_embedded_shader(app.world().resource::<AssetServer>(), pass));
+        let sdfs = CustomSdfs::new(
+            &mut app.world_mut().resource_mut::<Assets<Shader>>(),
+            passes,
+        );
         app.insert_resource(sdfs);
 
         let render_app = app.sub_app_mut(RenderApp);

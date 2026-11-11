@@ -63,12 +63,19 @@ struct LightPassParams {
     boundary_cells:              f32,
 }
 
-struct SkylightMask {
+struct SkyShade {
     center:   vec2<f32>,
+    rotation: Quaternion,
     h_extent: vec2<f32>,
+    radius:   f32,
+    kind:     u32,
+    params_a: vec4<f32>,
+    params_b: vec4<f32>,
+    strength: f32,
+    fade:     f32,
 }
 
-struct SkylightMaskBuffer {
+struct SkyShadeBuffer {
     count: u32,
-    data:  array<SkylightMask>,
+    data:  array<SkyShade>,
 }

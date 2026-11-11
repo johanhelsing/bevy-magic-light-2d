@@ -8,6 +8,6 @@ pub use crate::gi::render_layer::{
     LAYER_POST_PROCESSING_ID,
 };
 pub use crate::gi::resource::{BevyMagicLight2DSettings, LightPassParams};
-pub use crate::gi::types::{LightOccluder2D, OmniLightSource2D, SkylightLight2D, SkylightMask2D};
+pub use crate::gi::types::{LightOccluder2D, OmniLightSource2D, SkyShade2D, SkylightLight2D};
 pub use crate::gi::BevyMagicLight2DPlugin;
 pub use crate::{FloorCamera, ObjectsCamera, SpriteCamera, WallsCamera};

@@ -16,15 +16,17 @@
 //! A shape shader is WESL. One loaded from a file is a module at its asset
 //! path, and WESL names an asset path only from another asset path: inside
 //! an embedded shader `package::` means the crate. So the composed module
-//! and the pass's shader both live at asset paths under
-//! `bevy_magic_light_2d/`, the pass's by [`home_sdf_pass`].
+//! and the passes' shaders live at asset paths under
+//! `bevy_magic_light_2d/`, the passes' by [`home_sdf_pass`]. Two passes
+//! import it: the SDF pass, for occluders, and the probe pass, for the
+//! shape of a [`SkyShade2D`].
 
 use std::collections::HashSet;
 
 use bevy::prelude::*;
 use bevy::shader::{ShaderImport, Source};
 
-use crate::gi::types::LightOccluder2D;
+use crate::gi::types::{LightOccluder2D, SkyShade2D};
 use crate::prelude::BevyMagicLight2DSettings;
 
 /// The import path of the composed module, from a shader at an asset path.
@@ -33,9 +35,13 @@ pub const MODULE_PATH: &str = "package::bevy_magic_light_2d::custom_sdf";
 /// The composed module's asset path, which [`MODULE_PATH`] names.
 const MODULE_ASSET_PATH: &str = "bevy_magic_light_2d/custom_sdf.wesl";
 
-/// The asset path the SDF pass's shader is homed at, so it can import
-/// [`MODULE_PATH`].
-const PASS_IMPORT_PATH: &str = "/bevy_magic_light_2d/gi_sdf";
+/// The asset paths the passes that import [`MODULE_PATH`] are homed at:
+/// the SDF pass, which draws occluders, and the probe pass, which shades
+/// the sky (`SkyShade2D`).
+const PASS_IMPORT_PATHS: [&str; 2] = [
+    "/bevy_magic_light_2d/gi_sdf",
+    "/bevy_magic_light_2d/gi_ss_probe",
+];
 
 /// The composed module and the number each shape shader has in it.
 #[derive(Resource)]
@@ -49,20 +55,21 @@ pub struct CustomSdfs
     /// them from the start and a shape's first appearance recompiles
     /// nothing. Strong handles, so the assets stay loaded.
     registered: Vec<Handle<Shader>>,
-    /// The SDF pass's shader, loaded from the crate.
-    pass:       Handle<Shader>,
+    /// The shaders of the passes that import the module, loaded from the
+    /// crate, in the order of [`PASS_IMPORT_PATHS`].
+    passes:     [Handle<Shader>; 2],
 }
 
 impl CustomSdfs
 {
-    pub(crate) fn new(shaders: &mut Assets<Shader>, pass: Handle<Shader>) -> Self
+    pub(crate) fn new(shaders: &mut Assets<Shader>, passes: [Handle<Shader>; 2]) -> Self
     {
         let module = shaders.add(module_shader(&[]));
         Self {
             module,
             entries: Vec::new(),
             registered: Vec::new(),
-            pass,
+            passes,
         }
     }
 
@@ -145,20 +152,22 @@ fn module_path(shader: &Shader) -> Option<String>
     })
 }
 
-/// Moves the SDF pass's shader to [`PASS_IMPORT_PATH`] each time it loads
-/// or reloads. Runs before the frame's asset events go out, so the render
-/// world only ever sees it there.
+/// Moves each pass that imports the module to its home in
+/// [`PASS_IMPORT_PATHS`] each time it loads or reloads. Runs before the
+/// frame's asset events go out, so the render world only ever sees it there.
 pub(crate) fn home_sdf_pass(sdfs: Res<CustomSdfs>, mut shaders: ResMut<Assets<Shader>>)
 {
-    let wanted = ShaderImport::AssetPath(PASS_IMPORT_PATH.into());
-    let Some(pass) = shaders.get(&sdfs.pass) else {
-        return;
-    };
-    if pass.import_path == wanted {
-        return;
-    }
-    if let Some(pass) = shaders.get_mut_untracked(&sdfs.pass) {
-        pass.import_path = wanted;
+    for (pass, home) in sdfs.passes.iter().zip(PASS_IMPORT_PATHS) {
+        let wanted = ShaderImport::AssetPath(home.into());
+        let Some(shader) = shaders.get(pass) else {
+            continue;
+        };
+        if shader.import_path == wanted {
+            continue;
+        }
+        if let Some(shader) = shaders.get_mut_untracked(pass) {
+            shader.import_path = wanted;
+        }
     }
 }
 
@@ -168,8 +177,10 @@ pub(crate) fn home_sdf_pass(sdfs: Res<CustomSdfs>, mut shaders: ResMut<Assets<Sh
 /// when the settings say to forget unused ones and no occluder names it.
 pub(crate) fn compose_custom_sdfs(
     occluders: Query<&LightOccluder2D>,
-    changed: Query<(), Changed<LightOccluder2D>>,
+    shades: Query<&SkyShade2D>,
+    changed: Query<(), Or<(Changed<LightOccluder2D>, Changed<SkyShade2D>)>>,
     mut removed: RemovedComponents<LightOccluder2D>,
+    mut removed_shades: RemovedComponents<SkyShade2D>,
     mut shader_events: MessageReader<AssetEvent<Shader>>,
     settings: Res<BevyMagicLight2DSettings>,
     mut shaders: ResMut<Assets<Shader>>,
@@ -178,13 +189,14 @@ pub(crate) fn compose_custom_sdfs(
 {
     let shaders_moved = shader_events.read().count() > 0;
     let registered_moved = sdfs.is_changed();
-    if changed.is_empty() && removed.read().next().is_none() && !shaders_moved && !registered_moved
-    {
+    let removed_any = removed.read().count() + removed_shades.read().count() > 0;
+    if changed.is_empty() && !removed_any && !shaders_moved && !registered_moved {
         return;
     }
     let in_use: HashSet<AssetId<Shader>> = occluders
         .iter()
         .filter_map(|o| o.sdf.as_ref())
+        .chain(shades.iter().filter_map(|s| s.sdf.as_ref()))
         .map(Handle::id)
         .collect();
     let mut entries: Vec<(String, AssetId<Shader>)> = if settings.forget_unused_occluder_shaders {

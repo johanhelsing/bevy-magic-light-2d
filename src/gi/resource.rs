@@ -39,6 +39,10 @@ pub struct BevyMagicLight2DSettings
     /// generates occluder shaders at runtime and would otherwise grow the
     /// module without bound (`gi::custom_sdf`).
     pub forget_unused_occluder_shaders: bool,
+    /// Let each [`SkyShade2D`](crate::prelude::SkyShade2D) take its share
+    /// of the skylight. Off, the sky is as strong everywhere: an editor's
+    /// view that lights a dark level up.
+    pub shade_sky:                      bool,
 }
 
 impl Default for BevyMagicLight2DSettings
@@ -50,6 +54,7 @@ impl Default for BevyMagicLight2DSettings
             target_scaling_params:          default(),
             merge_occluder_rows:            true,
             forget_unused_occluder_shaders: false,
+            shade_sky:                      true,
         }
     }
 }

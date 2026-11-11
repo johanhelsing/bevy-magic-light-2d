@@ -168,23 +168,24 @@ impl Default for GpuProbeDataBuffer
 
 #[rustfmt::skip]
 #[derive(Clone, ShaderType, Default)]
-pub struct GpuSkylightMaskData {
+pub struct GpuSkyShade {
     pub center:   Vec2,
+    /// The inverse of the shade's rotation: world to its frame.
+    pub rotation: Vec4,
     pub h_extent: Vec2,
-}
-
-impl GpuSkylightMaskData
-{
-    pub fn new(center: Vec2, h_extent: Vec2) -> Self
-    {
-        Self { center, h_extent }
-    }
+    pub radius:   f32,
+    /// 0 for the rounded box, else the shape's number in the custom module.
+    pub kind:     u32,
+    pub params_a: Vec4,
+    pub params_b: Vec4,
+    pub strength: f32,
+    pub fade:     f32,
 }
 
 #[rustfmt::skip]
 #[derive(Clone, ShaderType, Default)]
-pub struct GpuSkylightMaskBuffer {
+pub struct GpuSkyShadeBuffer {
     pub count: u32,
     #[shader(size(runtime))]
-    pub data: Vec<GpuSkylightMaskData>,
+    pub data: Vec<GpuSkyShade>,
 }

@@ -68,7 +68,6 @@ fn main()
         })
         .register_type::<LightOccluder2D>()
         .register_type::<OmniLightSource2D>()
-        .register_type::<SkylightMask2D>()
         .register_type::<SkylightLight2D>()
         .register_type::<BevyMagicLight2DSettings>()
         .register_type::<LightPassParams>()
@@ -774,18 +773,20 @@ fn setup(
             Visibility::default(),
             Transform::from_translation(Vec3::new(30.0, -180.0, 0.0)),
         ))
-        .insert(Name::new("skylight_mask_1"))
-        .insert(SkylightMask2D {
+        .insert(Name::new("sky_shade_1"))
+        .insert(SkyShade2D {
             h_size: Vec2::new(430.0, 330.0),
+            ..default()
         });
     commands
         .spawn((
             Visibility::default(),
             Transform::from_translation(Vec3::new(101.6, -989.4, 0.0)),
         ))
-        .insert(Name::new("skylight_mask_2"))
-        .insert(SkylightMask2D {
+        .insert(Name::new("sky_shade_2"))
+        .insert(SkyShade2D {
             h_size: Vec2::new(163.3, 156.1),
+            ..default()
         });
 
     // Add skylight light.

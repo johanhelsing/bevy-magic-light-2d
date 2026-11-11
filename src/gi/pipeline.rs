@@ -16,7 +16,7 @@ use crate::gi::types_gpu::{
     GpuLightPassParams,
     GpuLightSourceBuffer,
     GpuProbeDataBuffer,
-    GpuSkylightMaskBuffer,
+    GpuSkyShadeBuffer,
 };
 
 const SDF_TARGET_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
@@ -207,14 +207,14 @@ pub fn system_queue_bind_groups(
     let camera_params_binding = gi_compute_assets.camera_params.binding();
     let gi_state_binding = gi_compute_assets.light_pass_params.binding();
     let probes_binding = gi_compute_assets.probes.binding();
-    let skylight_masks_binding = gi_compute_assets.skylight_masks.binding();
+    let sky_shades_binding = gi_compute_assets.sky_shades.binding();
 
     if light_sources_binding.is_none()
         || light_occluders_binding.is_none()
         || camera_params_binding.is_none()
         || gi_state_binding.is_none()
         || probes_binding.is_none()
-        || skylight_masks_binding.is_none()
+        || sky_shades_binding.is_none()
     {
         // Expected on the first frame before extract/prepare have run
         return;
@@ -226,14 +226,14 @@ pub fn system_queue_bind_groups(
         Some(camera_params),
         Some(gi_state),
         Some(probes),
-        Some(skylight_masks),
+        Some(sky_shades),
     ) = (
         light_sources_binding,
         light_occluders_binding,
         camera_params_binding,
         gi_state_binding,
         probes_binding,
-        skylight_masks_binding,
+        sky_shades_binding,
     ) {
         let targets = targets_wrapper
             .targets
@@ -310,7 +310,7 @@ pub fn system_queue_bind_groups(
                 },
                 BindGroupEntry {
                     binding:  3,
-                    resource: skylight_masks.clone(),
+                    resource: sky_shades.clone(),
                 },
                 BindGroupEntry {
                     binding:  4,
@@ -525,14 +525,14 @@ impl FromWorld for LightPassPipeline
                     },
                     count:      None,
                 },
-                // SkylightMasks.
+                // SkyShades.
                 BindGroupLayoutEntry {
                     binding:    3,
                     visibility: ShaderStages::COMPUTE,
                     ty:         BindingType::Buffer {
                         ty:                 BufferBindingType::Storage { read_only: true },
                         has_dynamic_offset: false,
-                        min_binding_size:   Some(GpuSkylightMaskBuffer::min_size()),
+                        min_binding_size:   Some(GpuSkyShadeBuffer::min_size()),
                     },
                     count:      None,
                 },

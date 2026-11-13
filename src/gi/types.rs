@@ -1,4 +1,3 @@
-use bevy::camera::visibility::{self, VisibilityClass};
 use bevy::prelude::*;
 
 #[rustfmt::skip]
@@ -6,9 +5,10 @@ use bevy::prelude::*;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 // Visibility brings the Inherited and View visibility the extraction reads,
 // and Transform the GlobalTransform: without them a light or an occluder is
-// skipped with no warning.
-#[require(VisibilityClass, Visibility, Transform)]
-#[component(on_add = visibility::add_visibility_class::<OmniLightSource2D>)]
+// skipped with no warning. No VisibilityClass: nothing draws a light or an
+// occluder from a view's visible entities, and a class would put every one
+// in them each frame, to be sorted, extracted and diffed for nothing.
+#[require(Visibility, Transform)]
 #[reflect(Component, Default)]
 #[cfg_attr(feature = "serde", reflect(Serialize, Deserialize))]
 pub struct OmniLightSource2D {
@@ -61,9 +61,10 @@ pub fn default_cone_half_angle() -> f32
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 // Visibility brings the Inherited and View visibility the extraction reads,
 // and Transform the GlobalTransform: without them a light or an occluder is
-// skipped with no warning.
-#[require(VisibilityClass, Visibility, Transform)]
-#[component(on_add = visibility::add_visibility_class::<LightOccluder2D>)]
+// skipped with no warning. No VisibilityClass: nothing draws a light or an
+// occluder from a view's visible entities, and a class would put every one
+// in them each frame, to be sorted, extracted and diffed for nothing.
+#[require(Visibility, Transform)]
 #[reflect(Component)]
 #[cfg_attr(feature = "serde", reflect(Serialize, Deserialize))]
 pub struct LightOccluder2D {
